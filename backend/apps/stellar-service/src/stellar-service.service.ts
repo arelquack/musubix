@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Keypair, Horizon, rpc, TransactionBuilder, Operation, Asset } from '@stellar/stellar-sdk';
+import { Keypair, Horizon, rpc, TransactionBuilder, Operation, Asset, Contract, nativeToScVal, Address, StrKey, xdr } from '@stellar/stellar-sdk';
 
 @Injectable()
 export class StellarServiceService {
@@ -9,6 +9,9 @@ export class StellarServiceService {
   
   // Hardcoded testnet network passphrase for Soroban & standard transactions
   private readonly networkPassphrase = 'Test SDF Network ; September 2015';
+
+  // Escrow WASM hash
+  private readonly escrowWasmHash = '6a8b7fe6ac6c89c40d57152f15af7fceef3cf86f9f78eecb5e1fa88912d420e5';
 
   constructor() {
     // Connect to Stellar Testnet
@@ -40,6 +43,136 @@ export class StellarServiceService {
     } catch (error) {
       this.logger.error('Failed to generate and fund Stellar wallet', error);
       throw new Error('Wallet generation and funding failed');
+    }
+  }
+
+  private async submitSorobanTransaction(tx: any, keypair: Keypair): Promise<any> {
+    const preparedTx = await this.rpcServer.prepareTransaction(tx);
+    preparedTx.sign(keypair);
+    
+    let sendResult = await this.rpcServer.sendTransaction(preparedTx);
+    if (sendResult.status === 'ERROR') {
+      throw new Error(`Submit failed: ${JSON.stringify(sendResult)}`);
+    }
+
+    let getTxResult: any;
+    let status = 'NOT_FOUND';
+    while (status === 'NOT_FOUND') {
+      await new Promise(r => setTimeout(r, 2000));
+      getTxResult = await this.rpcServer.getTransaction(sendResult.hash);
+      status = getTxResult.status;
+    }
+
+    if (status === 'SUCCESS') {
+      return getTxResult;
+    } else {
+      throw new Error(`Transaction failed: ${JSON.stringify(getTxResult)}`);
+    }
+  }
+  async deployEscrowInstance(deployerSecret: string): Promise<string> {
+    try {
+      this.logger.log(`\n--- DEPLOYING NEW ESCROW INSTANCE ---`);
+      const deployerKeypair = Keypair.fromSecret(deployerSecret);
+      const deployerAccount = await this.horizonServer.loadAccount(deployerKeypair.publicKey());
+      
+      const tx = new TransactionBuilder(deployerAccount, {
+        fee: '1000',
+        networkPassphrase: this.networkPassphrase,
+      })
+      .addOperation(Operation.createCustomContract({
+        address: Address.fromString(deployerKeypair.publicKey()),
+        wasmHash: Buffer.from(this.escrowWasmHash, 'hex')
+      }))
+      .setTimeout(30)
+      .build();
+
+      const getTxResult = await this.submitSorobanTransaction(tx, deployerKeypair);
+      
+      // Extract contract ID from returnValue
+      const contractAddress = Address.fromScVal(getTxResult.returnValue).toString();
+      this.logger.log(`Success! New Escrow Contract ID: ${contractAddress}`);
+      return contractAddress;
+    } catch (error) {
+      this.logger.error('Failed to deploy escrow instance', error);
+      throw error;
+    }
+  }
+
+  async initializeAndFundEscrow(contractId: string, clientSecret: string, freelancerPubKey: string, amountStr: string): Promise<void> {
+    try {
+      this.logger.log(`\n--- INITIALIZING & FUNDING ESCROW ---`);
+      const clientKeypair = Keypair.fromSecret(clientSecret);
+      let clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+      const contract = new Contract(contractId);
+      
+      const amountNative = Math.floor(parseFloat(amountStr) * 10000000); // Convert to stroops
+
+      const initOp = contract.call('initialize', 
+        nativeToScVal(clientKeypair.publicKey(), { type: 'address' }),
+        nativeToScVal(freelancerPubKey, { type: 'address' }),
+        nativeToScVal(amountNative, { type: 'i128' })
+      );
+
+      const txInit = new TransactionBuilder(clientAccount, {
+        fee: '1000',
+        networkPassphrase: this.networkPassphrase,
+      })
+      .addOperation(initOp)
+      .setTimeout(30)
+      .build();
+
+      this.logger.log('Submitting initialize transaction...');
+      await this.submitSorobanTransaction(txInit, clientKeypair);
+
+      // Reload account to update sequence number
+      clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+
+      const depositOp = contract.call('deposit', 
+        nativeToScVal('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', { type: 'address' }) // Testnet Native Token
+      );
+
+      const txDeposit = new TransactionBuilder(clientAccount, {
+        fee: '1000',
+        networkPassphrase: this.networkPassphrase,
+      })
+      .addOperation(depositOp)
+      .setTimeout(30)
+      .build();
+
+      this.logger.log('Submitting deposit transaction...');
+      await this.submitSorobanTransaction(txDeposit, clientKeypair);
+      
+      this.logger.log(`Success! Escrow initialized and funded with ${amountStr} XLM`);
+    } catch (error) {
+      this.logger.error('Failed to initialize and fund escrow', error);
+      throw error;
+    }
+  }
+
+  async releaseEscrow(contractId: string, clientSecret: string): Promise<void> {
+    try {
+      this.logger.log(`\n--- RELEASING ESCROW TO FREELANCER ---`);
+      const clientKeypair = Keypair.fromSecret(clientSecret);
+      const clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+      const contract = new Contract(contractId);
+
+      const approveOp = contract.call('approve_and_pay', 
+        nativeToScVal('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', { type: 'address' }) // Testnet Native Token
+      );
+
+      const tx = new TransactionBuilder(clientAccount, {
+        fee: '1000',
+        networkPassphrase: this.networkPassphrase,
+      })
+      .addOperation(approveOp)
+      .setTimeout(30)
+      .build();
+
+      await this.submitSorobanTransaction(tx, clientKeypair);
+      this.logger.log(`Success! Escrow released!`);
+    } catch (error) {
+      this.logger.error('Failed to release escrow', error);
+      throw error;
     }
   }
 

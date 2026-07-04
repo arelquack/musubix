@@ -176,28 +176,40 @@ let UserJobServiceService = class UserJobServiceService {
         await this.prisma.$disconnect();
     }
     async seedMockUsers() {
-        const mockClient = await this.prisma.user.upsert({
-            where: { email: 'client@musubix.com' },
-            update: {},
-            create: {
-                id: 'mock-client-id',
-                email: 'client@musubix.com',
-                name: 'Mock Client',
-                role: 'CLIENT',
-                stellarPubKey: 'CLIENT_PUB_KEY',
-            },
-        });
-        const mockFreelancer = await this.prisma.user.upsert({
-            where: { email: 'freelancer@musubix.com' },
-            update: {},
-            create: {
-                id: 'mock-freelancer-id',
-                email: 'freelancer@musubix.com',
-                name: 'Mock Freelancer',
-                role: 'FREELANCER',
-                stellarPubKey: 'FREELANCER_PUB_KEY',
-            },
-        });
+        let mockClient = await this.prisma.user.findUnique({ where: { email: 'client@musubix.com' } });
+        if (!mockClient || !mockClient.stellarSecret) {
+            console.log('Generating persistent wallet for Mock Client...');
+            const wallet = await this.stellarService.generateAndFundWallet();
+            mockClient = await this.prisma.user.upsert({
+                where: { email: 'client@musubix.com' },
+                update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+                create: {
+                    id: 'mock-client-id',
+                    email: 'client@musubix.com',
+                    name: 'Mock Client',
+                    role: 'CLIENT',
+                    stellarPubKey: wallet.publicKey,
+                    stellarSecret: wallet.secretKey,
+                },
+            });
+        }
+        let mockFreelancer = await this.prisma.user.findUnique({ where: { email: 'freelancer@musubix.com' } });
+        if (!mockFreelancer || !mockFreelancer.stellarSecret) {
+            console.log('Generating persistent wallet for Mock Freelancer...');
+            const wallet = await this.stellarService.generateAndFundWallet();
+            mockFreelancer = await this.prisma.user.upsert({
+                where: { email: 'freelancer@musubix.com' },
+                update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+                create: {
+                    id: 'mock-freelancer-id',
+                    email: 'freelancer@musubix.com',
+                    name: 'Mock Freelancer',
+                    role: 'FREELANCER',
+                    stellarPubKey: wallet.publicKey,
+                    stellarSecret: wallet.secretKey,
+                },
+            });
+        }
     }
     async createJob(data) {
         return this.prisma.job.create({
@@ -241,12 +253,20 @@ let UserJobServiceService = class UserJobServiceService {
         });
     }
     async lockEscrow(jobId) {
-        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        const job = await this.prisma.job.findUnique({
+            where: { id: jobId },
+            include: { client: true, freelancer: true }
+        });
         if (!job || job.status !== 'IN_PROGRESS')
             throw new Error('Job is not in progress');
+        if (!job.client?.stellarSecret || !job.freelancer?.stellarPubKey)
+            throw new Error('Missing wallets');
+        console.log(`\n--- LOCKING ESCROW FOR JOB ${jobId} ---`);
+        const contractId = await this.stellarService.deployEscrowInstance(job.client.stellarSecret);
+        await this.stellarService.initializeAndFundEscrow(contractId, job.client.stellarSecret, job.freelancer.stellarPubKey, job.budgetAmount.toString());
         return this.prisma.job.update({
             where: { id: jobId },
-            data: { status: 'LOCKED' },
+            data: { status: 'LOCKED', escrowId: contractId },
         });
     }
     async submitWork(jobId, workSubmission) {
@@ -259,16 +279,17 @@ let UserJobServiceService = class UserJobServiceService {
         });
     }
     async approveWork(jobId) {
-        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        const job = await this.prisma.job.findUnique({
+            where: { id: jobId },
+            include: { client: true }
+        });
         if (!job || job.status !== 'IN_REVIEW')
             throw new Error('Job is not in review');
-        console.log(`\n--- INITIATING STELLAR PAYOUT FOR JOB ${jobId} ---`);
-        console.log('Setting up Client Wallet...');
-        const clientWallet = await this.stellarService.generateAndFundWallet();
-        console.log('Setting up Freelancer Wallet...');
-        const freelancerWallet = await this.stellarService.generateAndFundWallet();
-        await this.stellarService.executeCrossBorderPayout(clientWallet.secretKey, freelancerWallet.secretKey, job.budgetAmount.toString());
-        console.log('--- STELLAR CROSS-BORDER PAYOUT COMPLETE ---\n');
+        if (!job.client?.stellarSecret || !job.escrowId)
+            throw new Error('Missing escrow or client secret');
+        console.log(`\n--- INITIATING SOROBAN PAYOUT FOR JOB ${jobId} ---`);
+        await this.stellarService.releaseEscrow(job.escrowId, job.client.stellarSecret);
+        console.log('--- SOROBAN PAYOUT COMPLETE ---\n');
         return this.prisma.job.update({
             where: { id: jobId },
             data: { status: 'COMPLETED' },
@@ -312,6 +333,7 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
     horizonServer;
     rpcServer;
     networkPassphrase = 'Test SDF Network ; September 2015';
+    escrowWasmHash = '6a8b7fe6ac6c89c40d57152f15af7fceef3cf86f9f78eecb5e1fa88912d420e5';
     constructor() {
         this.horizonServer = new stellar_sdk_1.Horizon.Server('https://horizon-testnet.stellar.org');
         this.rpcServer = new stellar_sdk_1.rpc.Server('https://soroban-testnet.stellar.org');
@@ -333,6 +355,109 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
         catch (error) {
             this.logger.error('Failed to generate and fund Stellar wallet', error);
             throw new Error('Wallet generation and funding failed');
+        }
+    }
+    async submitSorobanTransaction(tx, keypair) {
+        const preparedTx = await this.rpcServer.prepareTransaction(tx);
+        preparedTx.sign(keypair);
+        let sendResult = await this.rpcServer.sendTransaction(preparedTx);
+        if (sendResult.status === 'ERROR') {
+            throw new Error(`Submit failed: ${JSON.stringify(sendResult)}`);
+        }
+        let getTxResult;
+        let status = 'NOT_FOUND';
+        while (status === 'NOT_FOUND') {
+            await new Promise(r => setTimeout(r, 2000));
+            getTxResult = await this.rpcServer.getTransaction(sendResult.hash);
+            status = getTxResult.status;
+        }
+        if (status === 'SUCCESS') {
+            return getTxResult;
+        }
+        else {
+            throw new Error(`Transaction failed: ${JSON.stringify(getTxResult)}`);
+        }
+    }
+    async deployEscrowInstance(deployerSecret) {
+        try {
+            this.logger.log(`\n--- DEPLOYING NEW ESCROW INSTANCE ---`);
+            const deployerKeypair = stellar_sdk_1.Keypair.fromSecret(deployerSecret);
+            const deployerAccount = await this.horizonServer.loadAccount(deployerKeypair.publicKey());
+            const tx = new stellar_sdk_1.TransactionBuilder(deployerAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(stellar_sdk_1.Operation.createCustomContract({
+                address: stellar_sdk_1.Address.fromString(deployerKeypair.publicKey()),
+                wasmHash: Buffer.from(this.escrowWasmHash, 'hex')
+            }))
+                .setTimeout(30)
+                .build();
+            const getTxResult = await this.submitSorobanTransaction(tx, deployerKeypair);
+            const contractAddress = stellar_sdk_1.Address.fromScVal(getTxResult.returnValue).toString();
+            this.logger.log(`Success! New Escrow Contract ID: ${contractAddress}`);
+            return contractAddress;
+        }
+        catch (error) {
+            this.logger.error('Failed to deploy escrow instance', error);
+            throw error;
+        }
+    }
+    async initializeAndFundEscrow(contractId, clientSecret, freelancerPubKey, amountStr) {
+        try {
+            this.logger.log(`\n--- INITIALIZING & FUNDING ESCROW ---`);
+            const clientKeypair = stellar_sdk_1.Keypair.fromSecret(clientSecret);
+            let clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+            const contract = new stellar_sdk_1.Contract(contractId);
+            const amountNative = Math.floor(parseFloat(amountStr) * 10000000);
+            const initOp = contract.call('initialize', (0, stellar_sdk_1.nativeToScVal)(clientKeypair.publicKey(), { type: 'address' }), (0, stellar_sdk_1.nativeToScVal)(freelancerPubKey, { type: 'address' }), (0, stellar_sdk_1.nativeToScVal)(amountNative, { type: 'i128' }));
+            const txInit = new stellar_sdk_1.TransactionBuilder(clientAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(initOp)
+                .setTimeout(30)
+                .build();
+            this.logger.log('Submitting initialize transaction...');
+            await this.submitSorobanTransaction(txInit, clientKeypair);
+            clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+            const depositOp = contract.call('deposit', (0, stellar_sdk_1.nativeToScVal)('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', { type: 'address' }));
+            const txDeposit = new stellar_sdk_1.TransactionBuilder(clientAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(depositOp)
+                .setTimeout(30)
+                .build();
+            this.logger.log('Submitting deposit transaction...');
+            await this.submitSorobanTransaction(txDeposit, clientKeypair);
+            this.logger.log(`Success! Escrow initialized and funded with ${amountStr} XLM`);
+        }
+        catch (error) {
+            this.logger.error('Failed to initialize and fund escrow', error);
+            throw error;
+        }
+    }
+    async releaseEscrow(contractId, clientSecret) {
+        try {
+            this.logger.log(`\n--- RELEASING ESCROW TO FREELANCER ---`);
+            const clientKeypair = stellar_sdk_1.Keypair.fromSecret(clientSecret);
+            const clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+            const contract = new stellar_sdk_1.Contract(contractId);
+            const approveOp = contract.call('approve_and_pay', (0, stellar_sdk_1.nativeToScVal)('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', { type: 'address' }));
+            const tx = new stellar_sdk_1.TransactionBuilder(clientAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(approveOp)
+                .setTimeout(30)
+                .build();
+            await this.submitSorobanTransaction(tx, clientKeypair);
+            this.logger.log(`Success! Escrow released!`);
+        }
+        catch (error) {
+            this.logger.error('Failed to release escrow', error);
+            throw error;
         }
     }
     async executePayout(senderSecret, receiverPublicKey, amount) {

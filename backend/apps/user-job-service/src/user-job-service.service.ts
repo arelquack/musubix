@@ -22,29 +22,41 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   }
 
   async seedMockUsers() {
-    const mockClient = await this.prisma.user.upsert({
-      where: { email: 'client@musubix.com' },
-      update: {},
-      create: {
-        id: 'mock-client-id',
-        email: 'client@musubix.com',
-        name: 'Mock Client',
-        role: 'CLIENT',
-        stellarPubKey: 'CLIENT_PUB_KEY',
-      },
-    });
+    let mockClient = await this.prisma.user.findUnique({ where: { email: 'client@musubix.com' } });
+    if (!mockClient || !mockClient.stellarSecret) {
+      console.log('Generating persistent wallet for Mock Client...');
+      const wallet = await this.stellarService.generateAndFundWallet();
+      mockClient = await this.prisma.user.upsert({
+        where: { email: 'client@musubix.com' },
+        update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+        create: {
+          id: 'mock-client-id',
+          email: 'client@musubix.com',
+          name: 'Mock Client',
+          role: 'CLIENT',
+          stellarPubKey: wallet.publicKey,
+          stellarSecret: wallet.secretKey,
+        },
+      });
+    }
 
-    const mockFreelancer = await this.prisma.user.upsert({
-      where: { email: 'freelancer@musubix.com' },
-      update: {},
-      create: {
-        id: 'mock-freelancer-id',
-        email: 'freelancer@musubix.com',
-        name: 'Mock Freelancer',
-        role: 'FREELANCER',
-        stellarPubKey: 'FREELANCER_PUB_KEY',
-      },
-    });
+    let mockFreelancer = await this.prisma.user.findUnique({ where: { email: 'freelancer@musubix.com' } });
+    if (!mockFreelancer || !mockFreelancer.stellarSecret) {
+      console.log('Generating persistent wallet for Mock Freelancer...');
+      const wallet = await this.stellarService.generateAndFundWallet();
+      mockFreelancer = await this.prisma.user.upsert({
+        where: { email: 'freelancer@musubix.com' },
+        update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+        create: {
+          id: 'mock-freelancer-id',
+          email: 'freelancer@musubix.com',
+          name: 'Mock Freelancer',
+          role: 'FREELANCER',
+          stellarPubKey: wallet.publicKey,
+          stellarSecret: wallet.secretKey,
+        },
+      });
+    }
   }
 
   async createJob(data: any) {
@@ -90,12 +102,25 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   }
 
   async lockEscrow(jobId: string) {
-    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    const job = await this.prisma.job.findUnique({ 
+      where: { id: jobId },
+      include: { client: true, freelancer: true }
+    });
     if (!job || job.status !== 'IN_PROGRESS') throw new Error('Job is not in progress');
+    if (!job.client?.stellarSecret || !job.freelancer?.stellarPubKey) throw new Error('Missing wallets');
+
+    console.log(`\n--- LOCKING ESCROW FOR JOB ${jobId} ---`);
+    const contractId = await this.stellarService.deployEscrowInstance(job.client.stellarSecret);
+    await this.stellarService.initializeAndFundEscrow(
+      contractId, 
+      job.client.stellarSecret, 
+      job.freelancer.stellarPubKey, 
+      job.budgetAmount.toString()
+    );
 
     return this.prisma.job.update({
       where: { id: jobId },
-      data: { status: 'LOCKED' },
+      data: { status: 'LOCKED', escrowId: contractId },
     });
   }
 
@@ -110,26 +135,18 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   }
 
   async approveWork(jobId: string) {
-    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    const job = await this.prisma.job.findUnique({ 
+      where: { id: jobId },
+      include: { client: true }
+    });
     if (!job || job.status !== 'IN_REVIEW') throw new Error('Job is not in review');
+    if (!job.client?.stellarSecret || !job.escrowId) throw new Error('Missing escrow or client secret');
 
-    console.log(`\n--- INITIATING STELLAR PAYOUT FOR JOB ${jobId} ---`);
+    console.log(`\n--- INITIATING SOROBAN PAYOUT FOR JOB ${jobId} ---`);
     
-    // 1. Generate & fund Client Wallet (Sender)
-    console.log('Setting up Client Wallet...');
-    const clientWallet = await this.stellarService.generateAndFundWallet();
+    await this.stellarService.releaseEscrow(job.escrowId, job.client.stellarSecret);
     
-    // 2. Generate & fund Freelancer Wallet (Receiver)
-    console.log('Setting up Freelancer Wallet...');
-    const freelancerWallet = await this.stellarService.generateAndFundWallet();
-    
-    // 3. Execute real Cross-Border Path Payment
-    await this.stellarService.executeCrossBorderPayout(
-      clientWallet.secretKey,
-      freelancerWallet.secretKey, // Notice: Cross-Border method needs secret key for trustline signature
-      job.budgetAmount.toString()
-    );
-    console.log('--- STELLAR CROSS-BORDER PAYOUT COMPLETE ---\n');
+    console.log('--- SOROBAN PAYOUT COMPLETE ---\n');
 
     return this.prisma.job.update({
       where: { id: jobId },
