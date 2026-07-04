@@ -17,7 +17,10 @@ export default function ClientDashboard() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch('http://localhost:4000/jobs?clientId=mock-client-id');
+      const url = address 
+        ? `http://localhost:4000/jobs?clientPubKey=${address}`
+        : 'http://localhost:4000/jobs';
+      const res = await fetch(url);
       const data = await res.json();
       setJobs(data);
     } catch (e) {
@@ -27,15 +30,19 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     fetchJobs();
-  }, []);
+  }, [address]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!address) {
+      alert('Please connect your Web3 wallet first.');
+      return;
+    }
     try {
       await fetch('http://localhost:4000/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, clientId: 'mock-client-id' }),
+        body: JSON.stringify({ ...formData, clientPubKey: address }),
       });
       setShowForm(false);
       setFormData({ title: '', description: '', budgetAmount: '' });

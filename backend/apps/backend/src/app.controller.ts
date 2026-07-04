@@ -21,8 +21,8 @@ export class AppController {
   }
 
   @Post(':id/accept')
-  acceptJob(@Param('id') id: string, @Body() body: { freelancerId: string }) {
-    return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerId: body.freelancerId });
+  acceptJob(@Param('id') id: string, @Body() body: { freelancerPubKey: string }) {
+    return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerPubKey: body.freelancerPubKey });
   }
 
   @Post(':id/lock')

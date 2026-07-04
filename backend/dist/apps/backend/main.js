@@ -96,7 +96,7 @@ let AppController = class AppController {
         return this.userJobClient.send({ cmd: 'get_jobs' }, query);
     }
     acceptJob(id, body) {
-        return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerId: body.freelancerId });
+        return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerPubKey: body.freelancerPubKey });
     }
     lockEscrow(id) {
         return this.userJobClient.send({ cmd: 'lock_escrow' }, { jobId: id });

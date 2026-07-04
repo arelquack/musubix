@@ -86,7 +86,7 @@ let UserJobServiceController = class UserJobServiceController {
         return this.userJobServiceService.getJobs(query);
     }
     acceptJob(data) {
-        return this.userJobServiceService.acceptJob(data.jobId, data.freelancerId);
+        return this.userJobServiceService.acceptJob(data.jobId, data.freelancerPubKey);
     }
     lockEscrow(data) {
         return this.userJobServiceService.lockEscrow(data.jobId);
@@ -221,6 +221,18 @@ let UserJobServiceService = class UserJobServiceService {
         }
     }
     async createJob(data) {
+        if (!data.clientPubKey)
+            throw new Error('clientPubKey is required');
+        const client = await this.prisma.user.upsert({
+            where: { stellarPubKey: data.clientPubKey },
+            update: {},
+            create: {
+                email: `${data.clientPubKey}@musubix.local`,
+                name: `Client ${data.clientPubKey.slice(0, 5)}`,
+                role: 'CLIENT',
+                stellarPubKey: data.clientPubKey,
+            },
+        });
         return this.prisma.job.create({
             data: {
                 title: data.title,
@@ -228,36 +240,54 @@ let UserJobServiceService = class UserJobServiceService {
                 budgetAmount: parseFloat(data.budgetAmount),
                 currency: data.currency || 'USDC',
                 status: 'OPEN',
-                clientId: data.clientId || 'mock-client-id',
+                clientId: client.id,
             },
         });
     }
     async getJobs(query = {}) {
         const where = {};
-        if (query.clientId)
-            where.clientId = query.clientId;
-        if (query.freelancerId)
-            where.freelancerId = query.freelancerId;
+        if (query.clientPubKey) {
+            const client = await this.prisma.user.findUnique({ where: { stellarPubKey: query.clientPubKey } });
+            if (client)
+                where.clientId = client.id;
+        }
+        if (query.freelancerPubKey) {
+            const freelancer = await this.prisma.user.findUnique({ where: { stellarPubKey: query.freelancerPubKey } });
+            if (freelancer)
+                where.freelancerId = freelancer.id;
+        }
         if (query.status)
             where.status = query.status;
         return this.prisma.job.findMany({
             where,
             orderBy: { id: 'desc' },
             include: {
-                client: { select: { name: true } },
-                freelancer: { select: { name: true } },
+                client: { select: { name: true, stellarPubKey: true } },
+                freelancer: { select: { name: true, stellarPubKey: true } },
             },
         });
     }
-    async acceptJob(jobId, freelancerId) {
+    async acceptJob(jobId, freelancerPubKey) {
+        if (!freelancerPubKey)
+            throw new Error('freelancerPubKey is required');
         const job = await this.prisma.job.findUnique({ where: { id: jobId } });
         if (!job || job.status !== 'OPEN')
             throw new Error('Job is not available');
+        const freelancer = await this.prisma.user.upsert({
+            where: { stellarPubKey: freelancerPubKey },
+            update: {},
+            create: {
+                email: `${freelancerPubKey}@musubix.local`,
+                name: `Freelancer ${freelancerPubKey.slice(0, 5)}`,
+                role: 'FREELANCER',
+                stellarPubKey: freelancerPubKey,
+            },
+        });
         return this.prisma.job.update({
             where: { id: jobId },
             data: {
                 status: 'IN_PROGRESS',
-                freelancerId,
+                freelancerId: freelancer.id,
             },
         });
     }
@@ -268,10 +298,11 @@ let UserJobServiceService = class UserJobServiceService {
         });
         if (!job || job.status !== 'IN_PROGRESS')
             throw new Error('Job is not in progress');
-        if (!job.client?.stellarSecret || !job.freelancer?.stellarPubKey)
+        if (!job.client?.stellarPubKey || !job.freelancer?.stellarPubKey)
             throw new Error('Missing wallets');
         console.log(`\n--- DEPLOYING ESCROW FOR JOB ${jobId} ---`);
-        const contractId = await this.stellarService.deployEscrowInstance(job.client.stellarSecret);
+        const deployer = await this.stellarService.generateAndFundWallet();
+        const contractId = await this.stellarService.deployEscrowInstance(deployer.secretKey);
         return this.prisma.job.update({
             where: { id: jobId },
             data: { escrowId: contractId },

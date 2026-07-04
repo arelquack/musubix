@@ -53,7 +53,7 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
       });
       setIsInitialized(true);
       
-      const savedAddress = localStorage.getItem('swk_address');
+      const savedAddress = sessionStorage.getItem('swk_address');
       if (savedAddress) {
         setAddress(savedAddress);
         fetchBalance(savedAddress);
@@ -69,7 +69,7 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { address: publicKey } = await StellarWalletsKit.authModal();
       setAddress(publicKey);
-      localStorage.setItem('swk_address', publicKey);
+      sessionStorage.setItem('swk_address', publicKey);
       await fetchBalance(publicKey);
     } catch (error) {
       console.error('Wallet connection error:', error);
@@ -85,7 +85,7 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     } catch(e) {}
     setAddress(null);
     setBalance(null);
-    localStorage.removeItem('swk_address');
+    sessionStorage.removeItem('swk_address');
   };
 
   return (

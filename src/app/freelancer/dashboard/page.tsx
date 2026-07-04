@@ -4,7 +4,10 @@ import { PageWrapper } from '@/components/layout/PageWrapper';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
+import { useWeb3 } from '@/components/Web3Provider';
+
 export default function FreelancerDashboard() {
+  const { address, balance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
   const [jobs, setJobs] = useState<any[]>([]);
   const [submissionData, setSubmissionData] = useState<{ [key: string]: string }>({});
 
@@ -12,9 +15,13 @@ export default function FreelancerDashboard() {
     try {
       // For MVP, we fetch OPEN jobs, and jobs assigned to this freelancer
       const resOpen = await fetch('http://localhost:4000/jobs?status=OPEN');
-      const resMine = await fetch('http://localhost:4000/jobs?freelancerId=mock-freelancer-id');
       const openJobs = await resOpen.json();
-      const myJobs = await resMine.json();
+
+      let myJobs: any[] = [];
+      if (address) {
+        const resMine = await fetch(`http://localhost:4000/jobs?freelancerPubKey=${address}`);
+        myJobs = await resMine.json();
+      }
       
       if (Array.isArray(openJobs) && Array.isArray(myJobs)) {
         // Deduplicate in case a job is somehow both (shouldn't happen)
@@ -31,14 +38,18 @@ export default function FreelancerDashboard() {
 
   useEffect(() => {
     fetchJobs();
-  }, []);
+  }, [address]);
 
   const handleAction = async (jobId: string, action: string, payload: any = {}) => {
+    if (!address) {
+      alert('Please connect your Web3 wallet first.');
+      return;
+    }
     try {
       await fetch(`http://localhost:4000/jobs/${jobId}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, freelancerId: 'mock-freelancer-id' }),
+        body: JSON.stringify({ ...payload, freelancerPubKey: address }),
       });
       fetchJobs();
     } catch (e) {
@@ -57,11 +68,40 @@ export default function FreelancerDashboard() {
     }
   };
 
+  const formatAddress = (addr: string) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
+  };
+
   return (
     <PageWrapper>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-50">Freelancer Dashboard</h1>
-        <p className="text-slate-400 mt-2">Find available jobs and track your active projects.</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-50">Freelancer Dashboard</h1>
+          <p className="text-slate-400 mt-2">Find available jobs and track your active projects.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          {!address ? (
+            <Button variant="primary" onClick={connectWallet} disabled={isConnecting}>
+              {isConnecting ? 'Connecting...' : 'Connect Web3 Wallet'}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 py-2 px-4 rounded-lg">
+              <div className="flex flex-col">
+                <span className="text-xs text-slate-400">Connected Wallet</span>
+                <span className="text-sm font-medium text-slate-200">{formatAddress(address)}</span>
+              </div>
+              <div className="h-8 w-px bg-slate-800 mx-2"></div>
+              <div className="flex flex-col">
+                <span className="text-xs text-slate-400">Testnet Balance</span>
+                <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
+              </div>
+              <button onClick={disconnectWallet} className="ml-4 text-xs text-red-400 hover:text-red-300 transition-colors">
+                Disconnect
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -21,8 +21,8 @@ export class UserJobServiceController {
   }
 
   @MessagePattern({ cmd: 'accept_job' })
-  acceptJob(data: { jobId: string; freelancerId: string }) {
-    return this.userJobServiceService.acceptJob(data.jobId, data.freelancerId);
+  acceptJob(data: { jobId: string; freelancerPubKey: string }) {
+    return this.userJobServiceService.acceptJob(data.jobId, data.freelancerPubKey);
   }
 
   @MessagePattern({ cmd: 'lock_escrow' })
