@@ -1,26 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand: #0F172A;
-  --color-primary: #3B82F6;
+  --color-brand: #09090b; /* slate-950 */
+  --color-primary: #2563eb; /* blue-600 */
   --color-success: #10B981;
   --color-warning: #F59E0B;
-  --color-background-light: #F8FAFC;
-  --color-surface: #FFFFFF;
+  --color-background: #09090b;
+  --color-surface: #18181b; /* slate-900 */
   
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 :root {
-  --background: var(--color-background-light);
-  --foreground: var(--color-brand);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--color-brand);
-    --foreground: var(--color-background-light);
-  }
+  --background: var(--color-background);
+  --foreground: #f8fafc; /* slate-50 */
 }
 
 body {

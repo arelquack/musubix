@@ -46,11 +46,22 @@ export default function FreelancerDashboard() {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'OPEN': return 'bg-slate-800 text-slate-300';
+      case 'IN_PROGRESS': return 'bg-blue-500/10 text-blue-400';
+      case 'LOCKED': return 'bg-purple-500/10 text-purple-400';
+      case 'IN_REVIEW': return 'bg-amber-500/10 text-amber-400';
+      case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400';
+      default: return 'bg-slate-800 text-slate-300';
+    }
+  };
+
   return (
     <PageWrapper>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-brand">Freelancer Dashboard</h1>
-        <p className="text-slate-500 mt-2">Find available jobs and track your active projects.</p>
+        <h1 className="text-3xl font-bold text-slate-50">Freelancer Dashboard</h1>
+        <p className="text-slate-400 mt-2">Find available jobs and track your active projects.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -62,17 +73,17 @@ export default function FreelancerDashboard() {
           jobs.map((job: any) => (
             <Card key={job.id}>
               <div className="flex justify-between items-start mb-4">
-                <h3 className="font-semibold text-lg text-brand">{job.title}</h3>
-                <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full">{job.status}</span>
+                <h3 className="font-semibold text-lg text-slate-50">{job.title}</h3>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadge(job.status)}`}>{job.status}</span>
               </div>
-              <p className="text-sm text-slate-600 mb-4 line-clamp-2">{job.description}</p>
+              <p className="text-sm text-slate-400 mb-4 line-clamp-2">{job.description}</p>
               
               {job.status === 'LOCKED' && (
                 <div className="mb-4">
                   <input
                     type="text"
                     placeholder="Enter Github URL or text..."
-                    className="w-full border rounded-lg p-2 text-sm mb-2"
+                    className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2 text-sm mb-2"
                     value={submissionData[job.id] || ''}
                     onChange={(e) => setSubmissionData({ ...submissionData, [job.id]: e.target.value })}
                   />
@@ -88,19 +99,19 @@ export default function FreelancerDashboard() {
               )}
 
               <div className="flex justify-between items-center mt-auto">
-                <span className="font-medium text-brand">{job.budgetAmount} {job.currency}</span>
+                <span className="font-medium text-slate-200">{job.budgetAmount} {job.currency}</span>
                 
                 {job.status === 'OPEN' && (
                   <Button variant="outline" size="sm" onClick={() => handleAction(job.id, 'accept')}>Accept Job</Button>
                 )}
                 {job.status === 'IN_PROGRESS' && (
-                  <span className="text-xs text-slate-400">Waiting for Client Escrow...</span>
+                  <span className="text-xs text-slate-500">Waiting for Client Escrow...</span>
                 )}
                 {job.status === 'IN_REVIEW' && (
-                  <span className="text-xs text-brand font-medium">Pending Client Approval</span>
+                  <span className="text-xs text-slate-300 font-medium">Pending Client Approval</span>
                 )}
                 {job.status === 'COMPLETED' && (
-                  <span className="text-xs text-emerald-600 font-bold">PAID ✓</span>
+                  <span className="text-xs text-emerald-400 font-bold">PAID ✓</span>
                 )}
               </div>
             </Card>

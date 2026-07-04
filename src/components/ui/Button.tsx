@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'danger' | 'success';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
 }
@@ -10,10 +10,11 @@ export function Button({ variant = 'primary', size = 'md', className = '', child
   const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
   
   const variants = {
-    primary: 'bg-primary hover:bg-blue-600 text-white focus:ring-primary',
-    secondary: 'bg-brand hover:bg-slate-800 text-white focus:ring-brand',
-    outline: 'bg-transparent border border-slate-200 text-brand hover:bg-slate-50 focus:ring-slate-200',
-    danger: 'bg-red-500 hover:bg-red-600 text-white focus:ring-red-500',
+    primary: 'bg-blue-600 hover:bg-blue-500 text-slate-50 hover:shadow-[0_0_15px_rgba(37,99,235,0.3)] focus:ring-blue-500 border border-blue-500',
+    secondary: 'bg-slate-800 hover:bg-slate-700 text-slate-50 border border-slate-700 focus:ring-slate-700',
+    outline: 'bg-transparent border border-slate-700 text-slate-300 hover:bg-slate-800 focus:ring-slate-700',
+    danger: 'bg-red-500/20 hover:bg-red-500/30 text-red-500 border border-red-500/50 focus:ring-red-500',
+    success: 'bg-emerald-600 hover:bg-emerald-500 text-slate-50 hover:shadow-[0_0_15px_rgba(16,185,129,0.3)] border border-emerald-500 focus:ring-emerald-500',
   };
 
   const sizes = {
