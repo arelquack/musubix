@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/backend/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/backend/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/backend",
+  "projects": {
+    "backend": {
+      "type": "application",
+      "root": "apps/backend",
+      "entryFile": "main",
+      "sourceRoot": "apps/backend/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/backend/tsconfig.app.json"
+      }
+    },
+    "stellar-service": {
+      "type": "application",
+      "root": "apps/stellar-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/stellar-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/stellar-service/tsconfig.app.json"
+      }
+    },
+    "user-job-service": {
+      "type": "application",
+      "root": "apps/user-job-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/user-job-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/user-job-service/tsconfig.app.json"
+      }
+    }
+  }
+}
