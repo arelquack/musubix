@@ -160,10 +160,13 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.UserJobServiceService = void 0;
 const common_1 = __webpack_require__(4);
 const client_1 = __webpack_require__(7);
+const stellar_service_service_1 = __webpack_require__(8);
 let UserJobServiceService = class UserJobServiceService {
     prisma;
+    stellarService;
     constructor() {
         this.prisma = new client_1.PrismaClient();
+        this.stellarService = new stellar_service_service_1.StellarServiceService();
     }
     async onModuleInit() {
         await this.prisma.$connect();
@@ -259,7 +262,13 @@ let UserJobServiceService = class UserJobServiceService {
         const job = await this.prisma.job.findUnique({ where: { id: jobId } });
         if (!job || job.status !== 'IN_REVIEW')
             throw new Error('Job is not in review');
-        console.log(`[STUB] Calling StellarService.triggerPathPayment(${jobId}, ${job.budgetAmount})`);
+        console.log(`\n--- INITIATING STELLAR PAYOUT FOR JOB ${jobId} ---`);
+        console.log('Setting up Client Wallet...');
+        const clientWallet = await this.stellarService.generateAndFundWallet();
+        console.log('Setting up Freelancer Wallet...');
+        const freelancerWallet = await this.stellarService.generateAndFundWallet();
+        await this.stellarService.executePayout(clientWallet.secretKey, freelancerWallet.publicKey, job.budgetAmount.toString());
+        console.log('--- STELLAR PAYOUT COMPLETE ---\n');
         return this.prisma.job.update({
             where: { id: jobId },
             data: { status: 'COMPLETED' },
@@ -278,6 +287,98 @@ exports.UserJobServiceService = UserJobServiceService = __decorate([
 /***/ ((module) => {
 
 module.exports = require("@prisma/client");
+
+/***/ }),
+/* 8 */
+/***/ (function(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var StellarServiceService_1;
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.StellarServiceService = void 0;
+const common_1 = __webpack_require__(4);
+const stellar_sdk_1 = __webpack_require__(9);
+let StellarServiceService = StellarServiceService_1 = class StellarServiceService {
+    logger = new common_1.Logger(StellarServiceService_1.name);
+    horizonServer;
+    rpcServer;
+    networkPassphrase = 'Test SDF Network ; September 2015';
+    constructor() {
+        this.horizonServer = new stellar_sdk_1.Horizon.Server('https://horizon-testnet.stellar.org');
+        this.rpcServer = new stellar_sdk_1.rpc.Server('https://soroban-testnet.stellar.org');
+        this.logger.log('Connected to Stellar Testnet (Horizon & RPC)');
+    }
+    async generateAndFundWallet() {
+        try {
+            const keypair = stellar_sdk_1.Keypair.random();
+            const publicKey = keypair.publicKey();
+            const secretKey = keypair.secret();
+            this.logger.log(`Generated new wallet: ${publicKey}. Funding via Friendbot...`);
+            const response = await fetch(`https://friendbot.stellar.org?addr=${encodeURIComponent(publicKey)}`);
+            if (!response.ok) {
+                throw new Error(`Friendbot failed with status ${response.status}`);
+            }
+            this.logger.log(`Wallet ${publicKey} successfully funded with test XLM!`);
+            return { publicKey, secretKey };
+        }
+        catch (error) {
+            this.logger.error('Failed to generate and fund Stellar wallet', error);
+            throw new Error('Wallet generation and funding failed');
+        }
+    }
+    async executePayout(senderSecret, receiverPublicKey, amount) {
+        try {
+            this.logger.log(`Executing payout of ${amount} XLM to ${receiverPublicKey}...`);
+            const senderKeypair = stellar_sdk_1.Keypair.fromSecret(senderSecret);
+            const senderAccount = await this.horizonServer.loadAccount(senderKeypair.publicKey());
+            const transaction = new stellar_sdk_1.TransactionBuilder(senderAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(stellar_sdk_1.Operation.payment({
+                destination: receiverPublicKey,
+                asset: stellar_sdk_1.Asset.native(),
+                amount: amount,
+            }))
+                .setTimeout(30)
+                .build();
+            transaction.sign(senderKeypair);
+            this.logger.log(`Submitting transaction to Horizon...`);
+            const response = await this.horizonServer.submitTransaction(transaction);
+            this.logger.log(`Payout successful! Transaction Hash: ${response.hash}`);
+            this.logger.log(`Verify here: https://stellar.expert/explorer/testnet/tx/${response.hash}`);
+            return response;
+        }
+        catch (error) {
+            this.logger.error('Payout execution failed', error);
+            if (error.response && error.response.data) {
+                this.logger.error('Stellar Horizon Error details:', error.response.data);
+            }
+            throw new Error('Payout failed');
+        }
+    }
+};
+exports.StellarServiceService = StellarServiceService;
+exports.StellarServiceService = StellarServiceService = StellarServiceService_1 = __decorate([
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [])
+], StellarServiceService);
+
+
+/***/ }),
+/* 9 */
+/***/ ((module) => {
+
+module.exports = require("@stellar/stellar-sdk");
 
 /***/ })
 /******/ 	]);

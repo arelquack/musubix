@@ -1,17 +1,19 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { StellarServiceService } from '../../stellar-service/src/stellar-service.service';
 
 @Injectable()
 export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   private prisma: PrismaClient;
+  private stellarService: StellarServiceService;
 
   constructor() {
     this.prisma = new PrismaClient();
+    this.stellarService = new StellarServiceService();
   }
 
   async onModuleInit() {
     await this.prisma.$connect();
-    // Auto-seed mock users for testing
     await this.seedMockUsers();
   }
 
@@ -111,8 +113,23 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });
     if (!job || job.status !== 'IN_REVIEW') throw new Error('Job is not in review');
 
-    // MOCK: Trigger Stellar Path Payment via StellarService
-    console.log(`[STUB] Calling StellarService.triggerPathPayment(${jobId}, ${job.budgetAmount})`);
+    console.log(`\n--- INITIATING STELLAR PAYOUT FOR JOB ${jobId} ---`);
+    
+    // 1. Generate & fund Client Wallet (Sender)
+    console.log('Setting up Client Wallet...');
+    const clientWallet = await this.stellarService.generateAndFundWallet();
+    
+    // 2. Generate & fund Freelancer Wallet (Receiver)
+    console.log('Setting up Freelancer Wallet...');
+    const freelancerWallet = await this.stellarService.generateAndFundWallet();
+    
+    // 3. Execute real XLM Payout
+    await this.stellarService.executePayout(
+      clientWallet.secretKey,
+      freelancerWallet.publicKey,
+      job.budgetAmount.toString()
+    );
+    console.log('--- STELLAR PAYOUT COMPLETE ---\n');
 
     return this.prisma.job.update({
       where: { id: jobId },
