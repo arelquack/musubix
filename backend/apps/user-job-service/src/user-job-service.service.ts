@@ -123,13 +123,13 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     console.log('Setting up Freelancer Wallet...');
     const freelancerWallet = await this.stellarService.generateAndFundWallet();
     
-    // 3. Execute real XLM Payout
-    await this.stellarService.executePayout(
+    // 3. Execute real Cross-Border Path Payment
+    await this.stellarService.executeCrossBorderPayout(
       clientWallet.secretKey,
-      freelancerWallet.publicKey,
+      freelancerWallet.secretKey, // Notice: Cross-Border method needs secret key for trustline signature
       job.budgetAmount.toString()
     );
-    console.log('--- STELLAR PAYOUT COMPLETE ---\n');
+    console.log('--- STELLAR CROSS-BORDER PAYOUT COMPLETE ---\n');
 
     return this.prisma.job.update({
       where: { id: jobId },

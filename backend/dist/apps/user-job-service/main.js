@@ -267,8 +267,8 @@ let UserJobServiceService = class UserJobServiceService {
         const clientWallet = await this.stellarService.generateAndFundWallet();
         console.log('Setting up Freelancer Wallet...');
         const freelancerWallet = await this.stellarService.generateAndFundWallet();
-        await this.stellarService.executePayout(clientWallet.secretKey, freelancerWallet.publicKey, job.budgetAmount.toString());
-        console.log('--- STELLAR PAYOUT COMPLETE ---\n');
+        await this.stellarService.executeCrossBorderPayout(clientWallet.secretKey, freelancerWallet.secretKey, job.budgetAmount.toString());
+        console.log('--- STELLAR CROSS-BORDER PAYOUT COMPLETE ---\n');
         return this.prisma.job.update({
             where: { id: jobId },
             data: { status: 'COMPLETED' },
@@ -364,6 +364,78 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
                 this.logger.error('Stellar Horizon Error details:', error.response.data);
             }
             throw new Error('Payout failed');
+        }
+    }
+    async executeCrossBorderPayout(clientSecret, freelancerSecret, amountInXLM) {
+        try {
+            this.logger.log(`\n--- [1/4] TREASURY SETUP ---`);
+            const treasury = await this.generateAndFundWallet();
+            const treasuryKeypair = stellar_sdk_1.Keypair.fromSecret(treasury.secretKey);
+            const idrAsset = new stellar_sdk_1.Asset('IDR', treasuryKeypair.publicKey());
+            this.logger.log(`Defined custom asset: IDR (Issuer: ${treasury.publicKey})`);
+            this.logger.log(`\n--- [2/4] MARKET MAKING (DEX LIQUIDITY) ---`);
+            const treasuryAccount = await this.horizonServer.loadAccount(treasuryKeypair.publicKey());
+            const manageSellOfferTx = new stellar_sdk_1.TransactionBuilder(treasuryAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(stellar_sdk_1.Operation.manageSellOffer({
+                selling: idrAsset,
+                buying: stellar_sdk_1.Asset.native(),
+                amount: '100000',
+                price: '1',
+            }))
+                .setTimeout(30)
+                .build();
+            manageSellOfferTx.sign(treasuryKeypair);
+            await this.horizonServer.submitTransaction(manageSellOfferTx);
+            this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR.`);
+            this.logger.log(`\n--- [3/4] RECEIVER TRUSTLINE ---`);
+            const freelancerKeypair = stellar_sdk_1.Keypair.fromSecret(freelancerSecret);
+            const freelancerAccount = await this.horizonServer.loadAccount(freelancerKeypair.publicKey());
+            const changeTrustTx = new stellar_sdk_1.TransactionBuilder(freelancerAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(stellar_sdk_1.Operation.changeTrust({
+                asset: idrAsset,
+            }))
+                .setTimeout(30)
+                .build();
+            changeTrustTx.sign(freelancerKeypair);
+            await this.horizonServer.submitTransaction(changeTrustTx);
+            this.logger.log(`Trustline Established! Freelancer can now receive IDR.`);
+            this.logger.log(`\n--- [4/4] CROSS-BORDER PATH PAYMENT ---`);
+            const clientKeypair = stellar_sdk_1.Keypair.fromSecret(clientSecret);
+            const clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
+            const pathPaymentTx = new stellar_sdk_1.TransactionBuilder(clientAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(stellar_sdk_1.Operation.pathPaymentStrictSend({
+                sendAsset: stellar_sdk_1.Asset.native(),
+                sendAmount: amountInXLM,
+                destination: freelancerKeypair.publicKey(),
+                destAsset: idrAsset,
+                destMin: '0.0000001',
+            }))
+                .setTimeout(30)
+                .build();
+            pathPaymentTx.sign(clientKeypair);
+            const response = await this.horizonServer.submitTransaction(pathPaymentTx);
+            this.logger.log(`\n========================================`);
+            this.logger.log(`CROSS-BORDER PAYOUT SUCCESSFUL!`);
+            this.logger.log(`Transaction Hash: ${response.hash}`);
+            this.logger.log(`Verify here: https://stellar.expert/explorer/testnet/tx/${response.hash}`);
+            this.logger.log(`========================================\n`);
+            return response;
+        }
+        catch (error) {
+            this.logger.error('Cross-Border Payout execution failed', error);
+            if (error.response && error.response.data) {
+                this.logger.error('Stellar Horizon Error details:', JSON.stringify(error.response.data.extras, null, 2));
+            }
+            throw new Error('Cross-Border Payout failed');
         }
     }
 };
