@@ -4,6 +4,9 @@ import { PageWrapper } from '@/components/layout/PageWrapper';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useWeb3 } from '@/components/Web3Provider';
+import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
+import { Contract, nativeToScVal, TransactionBuilder, rpc, xdr } from '@stellar/stellar-sdk';
+import { server, TESTNET_NETWORK_PASSPHRASE, TESTNET_NATIVE_TOKEN, ESCROW_CONTRACT_ID } from '@/lib/soroban';
 
 export default function ClientDashboard() {
   const { address, balance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
@@ -42,8 +45,94 @@ export default function ClientDashboard() {
     }
   };
 
-  const handleAction = async (jobId: string, action: string) => {
-    if (action === 'approve') setProcessingJob(jobId);
+  const handleSorobanTx = async (jobId: string, contractId: string, functionName: string, successStatus: string, args: any[] = []) => {
+    if (!address) {
+      alert('Please connect your Web3 wallet first.');
+      return;
+    }
+    setProcessingJob(jobId);
+    try {
+      const contract = new Contract(contractId);
+      const sourceAccount = await server.getAccount(address);
+      const tx = new TransactionBuilder(sourceAccount, { fee: '1000', networkPassphrase: TESTNET_NETWORK_PASSPHRASE })
+        .addOperation(contract.call(functionName, ...args))
+        .setTimeout(30)
+        .build();
+
+      const preparedTx = await server.prepareTransaction(tx);
+      const { signedTxXdr } = await StellarWalletsKit.signTransaction(preparedTx.toXDR(), { 
+        networkPassphrase: TESTNET_NETWORK_PASSPHRASE, 
+        address 
+      });
+
+      const txRecord = await server.sendTransaction(TransactionBuilder.fromXDR(signedTxXdr, TESTNET_NETWORK_PASSPHRASE) as any);
+      
+      if (txRecord.status === 'ERROR') {
+        throw new Error('Transaction submission failed');
+      }
+
+      // Poll for transaction success
+      let status: any = rpc.Api.GetTransactionStatus.NOT_FOUND;
+      while (status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const res = await server.getTransaction(txRecord.hash);
+        status = res.status;
+        if (status === rpc.Api.GetTransactionStatus.FAILED) throw new Error('Transaction execution failed on-chain');
+        if (status === rpc.Api.GetTransactionStatus.SUCCESS) break;
+      }
+
+      // Sync backend status
+      await fetch(`http://localhost:4000/jobs/${jobId}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: successStatus }),
+      });
+      fetchJobs();
+    } catch (e: any) {
+      console.error(`Failed to execute ${functionName}:`, e);
+      alert(`Transaction Failed: ${e.message}`);
+    } finally {
+      setProcessingJob(null);
+    }
+  };
+
+  const handleAction = async (jobId: string, action: string, contractId?: string, job?: any) => {
+    if (action === 'lock') {
+      if (!address) {
+        alert('Please connect your Web3 wallet first.');
+        return;
+      }
+      setProcessingJob(jobId);
+      try {
+        const res = await fetch(`http://localhost:4000/jobs/${jobId}/lock`, { method: 'POST' });
+        if (!res.ok) throw new Error('Backend failed to deploy escrow contract');
+        const updatedJob = await res.json();
+        
+        // After backend initializes, frontend submits the init and deposit
+        await handleSorobanTx(jobId, updatedJob.escrowId, 'initialize', 'IN_PROGRESS', [
+          nativeToScVal(address, { type: 'address' }),
+          nativeToScVal(updatedJob.freelancer.stellarPubKey, { type: 'address' }),
+          nativeToScVal(updatedJob.budgetAmount * 10000000, { type: 'i128' }),
+        ]);
+
+        await handleSorobanTx(jobId, updatedJob.escrowId, 'deposit', 'LOCKED', [
+          new Contract(TESTNET_NATIVE_TOKEN).address().toScVal()
+        ]);
+      } catch (e: any) {
+        console.error('Lock flow failed:', e);
+        alert(`Lock flow failed: ${e.message}`);
+        setProcessingJob(null);
+      }
+      return;
+    }
+    if (action === 'approve') {
+      await handleSorobanTx(jobId, contractId || ESCROW_CONTRACT_ID, 'approve_and_pay', 'COMPLETED', [
+        new Contract(TESTNET_NATIVE_TOKEN).address().toScVal()
+      ]);
+      return;
+    }
+
+    setProcessingJob(jobId);
     try {
       await fetch(`http://localhost:4000/jobs/${jobId}/${action}`, {
         method: 'POST',
@@ -52,7 +141,7 @@ export default function ClientDashboard() {
     } catch (e) {
       console.error(`Failed to ${action} job`, e);
     } finally {
-      if (action === 'approve') setProcessingJob(null);
+      setProcessingJob(null);
     }
   };
 
@@ -154,7 +243,7 @@ export default function ClientDashboard() {
                   <span className="text-xs text-slate-500">Waiting for freelancer...</span>
                 )}
                 {job.status === 'IN_PROGRESS' && (
-                  <Button variant="primary" size="sm" onClick={() => handleAction(job.id, 'lock')}>Lock Escrow</Button>
+                  <Button variant="primary" size="sm" onClick={() => handleAction(job.id, 'lock', job.escrowId)}>Lock Escrow</Button>
                 )}
                 {job.status === 'LOCKED' && (
                   <span className="text-xs text-purple-400 font-medium">Funds Locked 🔒</span>
@@ -163,7 +252,7 @@ export default function ClientDashboard() {
                   <Button 
                     variant="success" 
                     size="sm" 
-                    onClick={() => handleAction(job.id, 'approve')}
+                    onClick={() => handleAction(job.id, 'approve', job.escrowId)}
                     disabled={processingJob === job.id}
                   >
                     {processingJob === job.id ? (

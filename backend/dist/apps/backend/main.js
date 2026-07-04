@@ -107,6 +107,9 @@ let AppController = class AppController {
     approveWork(id) {
         return this.userJobClient.send({ cmd: 'approve_work' }, { jobId: id });
     }
+    syncStatus(id, body) {
+        return this.userJobClient.send({ cmd: 'sync_status' }, { jobId: id, status: body.status });
+    }
 };
 exports.AppController = AppController;
 __decorate([
@@ -153,6 +156,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "approveWork", null);
+__decorate([
+    (0, common_1.Post)(':id/sync'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "syncStatus", null);
 exports.AppController = AppController = __decorate([
     (0, common_1.Controller)('jobs'),
     __param(1, (0, common_1.Inject)('USER_JOB_SERVICE')),

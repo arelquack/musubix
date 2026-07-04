@@ -39,4 +39,9 @@ export class AppController {
   approveWork(@Param('id') id: string) {
     return this.userJobClient.send({ cmd: 'approve_work' }, { jobId: id });
   }
+
+  @Post(':id/sync')
+  syncStatus(@Param('id') id: string, @Body() body: { status: string }) {
+    return this.userJobClient.send({ cmd: 'sync_status' }, { jobId: id, status: body.status });
+  }
 }

@@ -97,6 +97,9 @@ let UserJobServiceController = class UserJobServiceController {
     approveWork(data) {
         return this.userJobServiceService.approveWork(data.jobId);
     }
+    syncStatus(data) {
+        return this.userJobServiceService.syncStatus(data.jobId, data.status);
+    }
 };
 exports.UserJobServiceController = UserJobServiceController;
 __decorate([
@@ -136,6 +139,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "approveWork", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'sync_status' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "syncStatus", null);
 exports.UserJobServiceController = UserJobServiceController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [typeof (_a = typeof user_job_service_service_1.UserJobServiceService !== "undefined" && user_job_service_service_1.UserJobServiceService) === "function" ? _a : Object])
@@ -261,12 +270,12 @@ let UserJobServiceService = class UserJobServiceService {
             throw new Error('Job is not in progress');
         if (!job.client?.stellarSecret || !job.freelancer?.stellarPubKey)
             throw new Error('Missing wallets');
-        console.log(`\n--- LOCKING ESCROW FOR JOB ${jobId} ---`);
+        console.log(`\n--- DEPLOYING ESCROW FOR JOB ${jobId} ---`);
         const contractId = await this.stellarService.deployEscrowInstance(job.client.stellarSecret);
-        await this.stellarService.initializeAndFundEscrow(contractId, job.client.stellarSecret, job.freelancer.stellarPubKey, job.budgetAmount.toString());
         return this.prisma.job.update({
             where: { id: jobId },
-            data: { status: 'LOCKED', escrowId: contractId },
+            data: { escrowId: contractId },
+            include: { client: true, freelancer: true }
         });
     }
     async submitWork(jobId, workSubmission) {
@@ -293,6 +302,15 @@ let UserJobServiceService = class UserJobServiceService {
         return this.prisma.job.update({
             where: { id: jobId },
             data: { status: 'COMPLETED' },
+        });
+    }
+    async syncStatus(jobId, status) {
+        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        if (!job)
+            throw new Error('Job not found');
+        return this.prisma.job.update({
+            where: { id: jobId },
+            data: { status: status },
         });
     }
 };
@@ -403,9 +421,9 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
             throw error;
         }
     }
-    async initializeAndFundEscrow(contractId, clientSecret, freelancerPubKey, amountStr) {
+    async initializeEscrow(contractId, clientSecret, freelancerPubKey, amountStr) {
         try {
-            this.logger.log(`\n--- INITIALIZING & FUNDING ESCROW ---`);
+            this.logger.log(`\n--- INITIALIZING ESCROW ---`);
             const clientKeypair = stellar_sdk_1.Keypair.fromSecret(clientSecret);
             let clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
             const contract = new stellar_sdk_1.Contract(contractId);
@@ -420,21 +438,10 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
                 .build();
             this.logger.log('Submitting initialize transaction...');
             await this.submitSorobanTransaction(txInit, clientKeypair);
-            clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
-            const depositOp = contract.call('deposit', (0, stellar_sdk_1.nativeToScVal)('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', { type: 'address' }));
-            const txDeposit = new stellar_sdk_1.TransactionBuilder(clientAccount, {
-                fee: '1000',
-                networkPassphrase: this.networkPassphrase,
-            })
-                .addOperation(depositOp)
-                .setTimeout(30)
-                .build();
-            this.logger.log('Submitting deposit transaction...');
-            await this.submitSorobanTransaction(txDeposit, clientKeypair);
-            this.logger.log(`Success! Escrow initialized and funded with ${amountStr} XLM`);
+            this.logger.log(`Success! Escrow initialized with ${amountStr} XLM`);
         }
         catch (error) {
-            this.logger.error('Failed to initialize and fund escrow', error);
+            this.logger.error('Failed to initialize escrow', error);
             throw error;
         }
     }

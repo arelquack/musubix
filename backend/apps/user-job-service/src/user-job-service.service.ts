@@ -109,18 +109,14 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     if (!job || job.status !== 'IN_PROGRESS') throw new Error('Job is not in progress');
     if (!job.client?.stellarSecret || !job.freelancer?.stellarPubKey) throw new Error('Missing wallets');
 
-    console.log(`\n--- LOCKING ESCROW FOR JOB ${jobId} ---`);
+    console.log(`\n--- DEPLOYING ESCROW FOR JOB ${jobId} ---`);
     const contractId = await this.stellarService.deployEscrowInstance(job.client.stellarSecret);
-    await this.stellarService.initializeAndFundEscrow(
-      contractId, 
-      job.client.stellarSecret, 
-      job.freelancer.stellarPubKey, 
-      job.budgetAmount.toString()
-    );
 
+    // Save escrowId but keep status IN_PROGRESS because frontend will handle init and deposit
     return this.prisma.job.update({
       where: { id: jobId },
-      data: { status: 'LOCKED', escrowId: contractId },
+      data: { escrowId: contractId },
+      include: { client: true, freelancer: true }
     });
   }
 
@@ -151,6 +147,16 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.job.update({
       where: { id: jobId },
       data: { status: 'COMPLETED' },
+    });
+  }
+
+  async syncStatus(jobId: string, status: string) {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    if (!job) throw new Error('Job not found');
+
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data: { status: status as any },
     });
   }
 }

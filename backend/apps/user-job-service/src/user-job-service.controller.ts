@@ -39,4 +39,9 @@ export class UserJobServiceController {
   approveWork(data: { jobId: string }) {
     return this.userJobServiceService.approveWork(data.jobId);
   }
+
+  @MessagePattern({ cmd: 'sync_status' })
+  syncStatus(data: { jobId: string; status: string }) {
+    return this.userJobServiceService.syncStatus(data.jobId, data.status);
+  }
 }

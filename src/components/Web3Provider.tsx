@@ -32,14 +32,32 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  const fetchBalance = async (pubKey: string) => {
+    try {
+      const horizon = new Horizon.Server('https://horizon-testnet.stellar.org');
+      const account = await horizon.loadAccount(pubKey);
+      const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
+      if (nativeBalance) {
+        setBalance(nativeBalance.balance);
+      }
+    } catch (error) {
+      console.error('Failed to fetch balance', error);
+    }
+  };
+
   useEffect(() => {
-    // Initialize the kit only on the client side to avoid Next.js SSR issues
     try {
       StellarWalletsKit.init({
         network: Networks.TESTNET,
         modules: defaultModules(),
       });
       setIsInitialized(true);
+      
+      const savedAddress = localStorage.getItem('swk_address');
+      if (savedAddress) {
+        setAddress(savedAddress);
+        fetchBalance(savedAddress);
+      }
     } catch (e) {
       console.error("Kit initialization error", e);
     }
@@ -51,17 +69,11 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     try {
       const { address: publicKey } = await StellarWalletsKit.authModal();
       setAddress(publicKey);
-            
-      // Fetch testnet balance
-      const horizon = new Horizon.Server('https://horizon-testnet.stellar.org');
-      const account = await horizon.loadAccount(publicKey);
-      const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
-      if (nativeBalance) {
-        setBalance(nativeBalance.balance);
-      }
+      localStorage.setItem('swk_address', publicKey);
+      await fetchBalance(publicKey);
     } catch (error) {
       console.error('Wallet connection error:', error);
-      alert('Failed to connect wallet or fetch balance. Are you on Testnet?');
+      alert('Failed to connect wallet. Are you on Testnet?');
     } finally {
       setIsConnecting(false);
     }
@@ -73,6 +85,7 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     } catch(e) {}
     setAddress(null);
     setBalance(null);
+    localStorage.removeItem('swk_address');
   };
 
   return (

@@ -98,9 +98,9 @@ export class StellarServiceService {
     }
   }
 
-  async initializeAndFundEscrow(contractId: string, clientSecret: string, freelancerPubKey: string, amountStr: string): Promise<void> {
+  async initializeEscrow(contractId: string, clientSecret: string, freelancerPubKey: string, amountStr: string): Promise<void> {
     try {
-      this.logger.log(`\n--- INITIALIZING & FUNDING ESCROW ---`);
+      this.logger.log(`\n--- INITIALIZING ESCROW ---`);
       const clientKeypair = Keypair.fromSecret(clientSecret);
       let clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
       const contract = new Contract(contractId);
@@ -124,27 +124,9 @@ export class StellarServiceService {
       this.logger.log('Submitting initialize transaction...');
       await this.submitSorobanTransaction(txInit, clientKeypair);
 
-      // Reload account to update sequence number
-      clientAccount = await this.horizonServer.loadAccount(clientKeypair.publicKey());
-
-      const depositOp = contract.call('deposit', 
-        nativeToScVal('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC', { type: 'address' }) // Testnet Native Token
-      );
-
-      const txDeposit = new TransactionBuilder(clientAccount, {
-        fee: '1000',
-        networkPassphrase: this.networkPassphrase,
-      })
-      .addOperation(depositOp)
-      .setTimeout(30)
-      .build();
-
-      this.logger.log('Submitting deposit transaction...');
-      await this.submitSorobanTransaction(txDeposit, clientKeypair);
-      
-      this.logger.log(`Success! Escrow initialized and funded with ${amountStr} XLM`);
+      this.logger.log(`Success! Escrow initialized with ${amountStr} XLM`);
     } catch (error) {
-      this.logger.error('Failed to initialize and fund escrow', error);
+      this.logger.error('Failed to initialize escrow', error);
       throw error;
     }
   }
