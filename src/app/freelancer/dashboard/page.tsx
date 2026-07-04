@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
 export default function FreelancerDashboard() {
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState<any[]>([]);
   const [submissionData, setSubmissionData] = useState<{ [key: string]: string }>({});
 
   const fetchJobs = async () => {

@@ -3,9 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { PageWrapper } from '@/components/layout/PageWrapper';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useWeb3 } from '@/components/Web3Provider';
 
 export default function ClientDashboard() {
-  const [jobs, setJobs] = useState([]);
+  const { address, balance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
+  const [jobs, setJobs] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ title: '', description: '', budgetAmount: '' });
   const [processingJob, setProcessingJob] = useState<string | null>(null);
@@ -65,6 +67,11 @@ export default function ClientDashboard() {
     }
   };
 
+  const formatAddress = (addr: string) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
+  };
+
   return (
     <PageWrapper>
       <div className="flex justify-between items-center mb-8">
@@ -72,9 +79,31 @@ export default function ClientDashboard() {
           <h1 className="text-3xl font-bold text-slate-50">Client Dashboard</h1>
           <p className="text-slate-400 mt-2">Manage your posted jobs and create new ones.</p>
         </div>
-        <Button variant="primary" onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : 'Post New Job'}
-        </Button>
+        <div className="flex items-center gap-4">
+          {!address ? (
+            <Button variant="primary" onClick={connectWallet} disabled={isConnecting}>
+              {isConnecting ? 'Connecting...' : 'Connect Web3 Wallet'}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 py-2 px-4 rounded-lg">
+              <div className="flex flex-col">
+                <span className="text-xs text-slate-400">Connected Wallet</span>
+                <span className="text-sm font-medium text-slate-200">{formatAddress(address)}</span>
+              </div>
+              <div className="h-8 w-px bg-slate-800 mx-2"></div>
+              <div className="flex flex-col">
+                <span className="text-xs text-slate-400">Testnet Balance</span>
+                <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
+              </div>
+              <button onClick={disconnectWallet} className="ml-4 text-xs text-red-400 hover:text-red-300 transition-colors">
+                Disconnect
+              </button>
+            </div>
+          )}
+          <Button variant="outline" onClick={() => setShowForm(!showForm)}>
+            {showForm ? 'Cancel Posting' : 'Post New Job'}
+          </Button>
+        </div>
       </div>
 
       {showForm && (
