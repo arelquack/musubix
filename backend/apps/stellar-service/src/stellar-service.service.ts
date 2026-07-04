@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Keypair, Horizon, rpc, TransactionBuilder, Operation, Asset, Contract, nativeToScVal, Address, StrKey, xdr } from '@stellar/stellar-sdk';
 
 @Injectable()
-export class StellarServiceService {
+export class StellarServiceService implements OnModuleInit {
   private readonly logger = new Logger(StellarServiceService.name);
   private horizonServer: Horizon.Server;
   private rpcServer: rpc.Server;
@@ -12,12 +12,57 @@ export class StellarServiceService {
 
   // Escrow WASM hash
   private readonly escrowWasmHash = '6a8b7fe6ac6c89c40d57152f15af7fceef3cf86f9f78eecb5e1fa88912d420e5';
+  
+  private treasuryPubKey: string | null = null;
 
   constructor() {
     // Connect to Stellar Testnet
     this.horizonServer = new Horizon.Server('https://horizon-testnet.stellar.org');
     this.rpcServer = new rpc.Server('https://soroban-testnet.stellar.org');
     this.logger.log('Connected to Stellar Testnet (Horizon & RPC)');
+  }
+
+  async onModuleInit() {
+    // Only setup if this is not the gateway but the actual service instantiating it for use
+    // Wait, StellarServiceService is imported in UserJobServiceModule, so it will setup when UserJobServiceModule starts.
+    await this.setupGlobalTreasury();
+  }
+
+  async setupGlobalTreasury() {
+    if (this.treasuryPubKey) return;
+    try {
+      this.logger.log('\n--- SETTING UP GLOBAL TREASURY FOR IDR DEX LIQUIDITY ---');
+      const treasury = await this.generateAndFundWallet();
+      this.treasuryPubKey = treasury.publicKey;
+      const treasuryKeypair = Keypair.fromSecret(treasury.secretKey);
+      const idrAsset = new Asset('IDR', treasury.publicKey);
+      
+      this.logger.log(`Defined custom asset: IDR (Issuer: ${treasury.publicKey})`);
+
+      const treasuryAccount = await this.horizonServer.loadAccount(treasuryKeypair.publicKey());
+      const manageSellOfferTx = new TransactionBuilder(treasuryAccount, {
+        fee: '1000',
+        networkPassphrase: this.networkPassphrase,
+      })
+      .addOperation(Operation.manageSellOffer({
+        selling: idrAsset,
+        buying: Asset.native(),
+        amount: '100000',
+        price: '1', // 1 IDR = 1 XLM for simplicity
+      }))
+      .setTimeout(30)
+      .build();
+      
+      manageSellOfferTx.sign(treasuryKeypair);
+      await this.horizonServer.submitTransaction(manageSellOfferTx);
+      this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR on Testnet DEX.`);
+    } catch (e) {
+      this.logger.error('Failed to setup Treasury', e);
+    }
+  }
+
+  getTreasuryPubKey(): string {
+    return this.treasuryPubKey || '';
   }
 
   /**

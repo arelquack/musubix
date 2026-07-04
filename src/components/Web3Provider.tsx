@@ -11,6 +11,7 @@ import { Horizon } from '@stellar/stellar-sdk';
 interface Web3ContextType {
   address: string | null;
   balance: string | null;
+  idrBalance: string | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   isConnecting: boolean;
@@ -19,6 +20,7 @@ interface Web3ContextType {
 const Web3Context = createContext<Web3ContextType>({
   address: null,
   balance: null,
+  idrBalance: null,
   connectWallet: async () => {},
   disconnectWallet: () => {},
   isConnecting: false,
@@ -29,6 +31,7 @@ export const useWeb3 = () => useContext(Web3Context);
 export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
   const [address, setAddress] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
+  const [idrBalance, setIdrBalance] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -36,9 +39,17 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     try {
       const horizon = new Horizon.Server('https://horizon-testnet.stellar.org');
       const account = await horizon.loadAccount(pubKey);
+      
       const nativeBalance = account.balances.find((b) => b.asset_type === 'native');
       if (nativeBalance) {
         setBalance(nativeBalance.balance);
+      }
+      
+      const idrBal = account.balances.find((b) => (b as any).asset_code === 'IDR');
+      if (idrBal) {
+        setIdrBalance(idrBal.balance);
+      } else {
+        setIdrBalance('0');
       }
     } catch (error) {
       console.error('Failed to fetch balance', error);
@@ -89,7 +100,7 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <Web3Context.Provider value={{ address, balance, connectWallet, disconnectWallet, isConnecting }}>
+    <Web3Context.Provider value={{ address, balance, idrBalance, connectWallet, disconnectWallet, isConnecting }}>
       {children}
     </Web3Context.Provider>
   );

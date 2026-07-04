@@ -21,6 +21,7 @@ enum JobStatus {
   LOCKED
   IN_REVIEW
   COMPLETED
+  WITHDRAWN
 }
 
 model User {

@@ -14,6 +14,7 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     await this.prisma.$connect();
+    await this.stellarService.setupGlobalTreasury();
     await this.seedMockUsers();
   }
 

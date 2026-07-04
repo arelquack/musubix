@@ -95,6 +95,9 @@ let AppController = class AppController {
     getJobs(query) {
         return this.userJobClient.send({ cmd: 'get_jobs' }, query);
     }
+    getTreasury() {
+        return this.userJobClient.send({ cmd: 'get_treasury' }, {});
+    }
     acceptJob(id, body) {
         return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerPubKey: body.freelancerPubKey });
     }
@@ -126,6 +129,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getJobs", null);
+__decorate([
+    (0, common_1.Get)('treasury'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "getTreasury", null);
 __decorate([
     (0, common_1.Post)(':id/accept'),
     __param(0, (0, common_1.Param)('id')),

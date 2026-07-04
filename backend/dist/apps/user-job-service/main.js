@@ -85,6 +85,9 @@ let UserJobServiceController = class UserJobServiceController {
     getJobs(query) {
         return this.userJobServiceService.getJobs(query);
     }
+    getTreasury() {
+        return { issuerPubKey: this.userJobServiceService['stellarService'].getTreasuryPubKey() };
+    }
     acceptJob(data) {
         return this.userJobServiceService.acceptJob(data.jobId, data.freelancerPubKey);
     }
@@ -115,6 +118,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "getJobs", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'get_treasury' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "getTreasury", null);
 __decorate([
     (0, microservices_1.MessagePattern)({ cmd: 'accept_job' }),
     __metadata("design:type", Function),
@@ -179,6 +188,7 @@ let UserJobServiceService = class UserJobServiceService {
     }
     async onModuleInit() {
         await this.prisma.$connect();
+        await this.stellarService.setupGlobalTreasury();
         await this.seedMockUsers();
     }
     async onModuleDestroy() {
@@ -383,10 +393,48 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
     rpcServer;
     networkPassphrase = 'Test SDF Network ; September 2015';
     escrowWasmHash = '6a8b7fe6ac6c89c40d57152f15af7fceef3cf86f9f78eecb5e1fa88912d420e5';
+    treasuryPubKey = null;
     constructor() {
         this.horizonServer = new stellar_sdk_1.Horizon.Server('https://horizon-testnet.stellar.org');
         this.rpcServer = new stellar_sdk_1.rpc.Server('https://soroban-testnet.stellar.org');
         this.logger.log('Connected to Stellar Testnet (Horizon & RPC)');
+    }
+    async onModuleInit() {
+        await this.setupGlobalTreasury();
+    }
+    async setupGlobalTreasury() {
+        if (this.treasuryPubKey)
+            return;
+        try {
+            this.logger.log('\n--- SETTING UP GLOBAL TREASURY FOR IDR DEX LIQUIDITY ---');
+            const treasury = await this.generateAndFundWallet();
+            this.treasuryPubKey = treasury.publicKey;
+            const treasuryKeypair = stellar_sdk_1.Keypair.fromSecret(treasury.secretKey);
+            const idrAsset = new stellar_sdk_1.Asset('IDR', treasury.publicKey);
+            this.logger.log(`Defined custom asset: IDR (Issuer: ${treasury.publicKey})`);
+            const treasuryAccount = await this.horizonServer.loadAccount(treasuryKeypair.publicKey());
+            const manageSellOfferTx = new stellar_sdk_1.TransactionBuilder(treasuryAccount, {
+                fee: '1000',
+                networkPassphrase: this.networkPassphrase,
+            })
+                .addOperation(stellar_sdk_1.Operation.manageSellOffer({
+                selling: idrAsset,
+                buying: stellar_sdk_1.Asset.native(),
+                amount: '100000',
+                price: '1',
+            }))
+                .setTimeout(30)
+                .build();
+            manageSellOfferTx.sign(treasuryKeypair);
+            await this.horizonServer.submitTransaction(manageSellOfferTx);
+            this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR on Testnet DEX.`);
+        }
+        catch (e) {
+            this.logger.error('Failed to setup Treasury', e);
+        }
+    }
+    getTreasuryPubKey() {
+        return this.treasuryPubKey || '';
     }
     async generateAndFundWallet() {
         try {

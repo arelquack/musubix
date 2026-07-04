@@ -5,11 +5,24 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
 import { useWeb3 } from '@/components/Web3Provider';
+import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
+import { TransactionBuilder, Operation, Asset, rpc } from '@stellar/stellar-sdk';
+import { server, TESTNET_NETWORK_PASSPHRASE } from '@/lib/soroban';
 
 export default function FreelancerDashboard() {
-  const { address, balance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
+  const { address, balance, idrBalance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
   const [jobs, setJobs] = useState<any[]>([]);
   const [submissionData, setSubmissionData] = useState<{ [key: string]: string }>({});
+
+  const [treasuryPubKey, setTreasuryPubKey] = useState<string | null>(null);
+  const [processingJob, setProcessingJob] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('http://localhost:4000/jobs/treasury')
+      .then(res => res.json())
+      .then(data => setTreasuryPubKey(data.issuerPubKey))
+      .catch(console.error);
+  }, []);
 
   const fetchJobs = async () => {
     try {
@@ -40,11 +53,58 @@ export default function FreelancerDashboard() {
     fetchJobs();
   }, [address]);
 
+  const handleWithdraw = async (jobId: string, amountXlm: string) => {
+    if (!address) return alert('Connect wallet first.');
+    if (!treasuryPubKey) return alert('Treasury not ready. Please refresh.');
+    setProcessingJob(jobId);
+    try {
+      const sourceAccount = await server.getAccount(address);
+      const idrAsset = new Asset('IDR', treasuryPubKey);
+
+      const tx = new TransactionBuilder(sourceAccount, { fee: '1000', networkPassphrase: TESTNET_NETWORK_PASSPHRASE })
+        .addOperation(Operation.changeTrust({ asset: idrAsset }))
+        .addOperation(Operation.pathPaymentStrictSend({
+          sendAsset: Asset.native(),
+          sendAmount: amountXlm,
+          destination: address,
+          destAsset: idrAsset,
+          destMin: '0.0000001',
+        }))
+        .setTimeout(30)
+        .build();
+
+      const { signedTxXdr } = await StellarWalletsKit.signTransaction(tx.toXDR(), { 
+        networkPassphrase: TESTNET_NETWORK_PASSPHRASE, 
+        address 
+      });
+
+      const txRecord = await server.sendTransaction(TransactionBuilder.fromXDR(signedTxXdr, TESTNET_NETWORK_PASSPHRASE) as any);
+      
+      if (txRecord.status === 'ERROR') {
+        throw new Error('Transaction submission failed');
+      }
+
+      await fetch(`http://localhost:4000/jobs/${jobId}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'WITHDRAWN' }),
+      });
+      fetchJobs();
+      alert('Withdrawal Successful! You have received IDR.');
+    } catch (e: any) {
+      console.error(e);
+      alert('Withdrawal Failed: ' + e.message);
+    } finally {
+      setProcessingJob(null);
+    }
+  };
+
   const handleAction = async (jobId: string, action: string, payload: any = {}) => {
     if (!address) {
       alert('Please connect your Web3 wallet first.');
       return;
     }
+    setProcessingJob(jobId);
     try {
       await fetch(`http://localhost:4000/jobs/${jobId}/${action}`, {
         method: 'POST',
@@ -54,6 +114,8 @@ export default function FreelancerDashboard() {
       fetchJobs();
     } catch (e) {
       console.error(`Failed to ${action} job`, e);
+    } finally {
+      setProcessingJob(null);
     }
   };
 
@@ -64,6 +126,7 @@ export default function FreelancerDashboard() {
       case 'LOCKED': return 'bg-purple-500/10 text-purple-400';
       case 'IN_REVIEW': return 'bg-amber-500/10 text-amber-400';
       case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400';
+      case 'WITHDRAWN': return 'bg-indigo-500/10 text-indigo-400';
       default: return 'bg-slate-800 text-slate-300';
     }
   };
@@ -93,8 +156,9 @@ export default function FreelancerDashboard() {
               </div>
               <div className="h-8 w-px bg-slate-800 mx-2"></div>
               <div className="flex flex-col">
-                <span className="text-xs text-slate-400">Testnet Balance</span>
+                <span className="text-xs text-slate-400">Balances</span>
                 <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
+                <span className="text-sm font-bold text-green-400">{idrBalance ? parseFloat(idrBalance).toFixed(2) : '0'} IDR</span>
               </div>
               <button onClick={disconnectWallet} className="ml-4 text-xs text-red-400 hover:text-red-300 transition-colors">
                 Disconnect
@@ -151,7 +215,17 @@ export default function FreelancerDashboard() {
                   <span className="text-xs text-slate-300 font-medium">Pending Client Approval</span>
                 )}
                 {job.status === 'COMPLETED' && (
-                  <span className="text-xs text-emerald-400 font-bold">PAID ✓</span>
+                  <Button 
+                    variant="success" 
+                    size="sm" 
+                    onClick={() => handleWithdraw(job.id, job.budgetAmount.toString())}
+                    disabled={processingJob === job.id}
+                  >
+                    {processingJob === job.id ? 'Processing Swap...' : 'Withdraw to IDR (Bank)'}
+                  </Button>
+                )}
+                {job.status === 'WITHDRAWN' && (
+                  <span className="text-xs text-blue-400 font-bold">FUNDS WITHDRAWN ✓</span>
                 )}
               </div>
             </Card>
