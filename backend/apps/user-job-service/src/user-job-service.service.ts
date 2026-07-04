@@ -58,15 +58,65 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async getJobs() {
+  async getJobs(query: any = {}) {
+    const where: any = {};
+    if (query.clientId) where.clientId = query.clientId;
+    if (query.freelancerId) where.freelancerId = query.freelancerId;
+    if (query.status) where.status = query.status;
+
     return this.prisma.job.findMany({
-      where: { status: 'OPEN' },
+      where,
       orderBy: { id: 'desc' },
       include: {
-        client: {
-          select: { name: true }
-        }
-      }
+        client: { select: { name: true } },
+        freelancer: { select: { name: true } },
+      },
+    });
+  }
+
+  async acceptJob(jobId: string, freelancerId: string) {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    if (!job || job.status !== 'OPEN') throw new Error('Job is not available');
+
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data: {
+        status: 'IN_PROGRESS',
+        freelancerId,
+      },
+    });
+  }
+
+  async lockEscrow(jobId: string) {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    if (!job || job.status !== 'IN_PROGRESS') throw new Error('Job is not in progress');
+
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data: { status: 'LOCKED' },
+    });
+  }
+
+  async submitWork(jobId: string, workSubmission: string) {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    if (!job || job.status !== 'LOCKED') throw new Error('Job escrow is not locked');
+
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data: { status: 'IN_REVIEW', workSubmission },
+    });
+  }
+
+  async approveWork(jobId: string) {
+    const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+    if (!job || job.status !== 'IN_REVIEW') throw new Error('Job is not in review');
+
+    // MOCK: Trigger Stellar Path Payment via StellarService
+    console.log(`[STUB] Calling StellarService.triggerPathPayment(${jobId}, ${job.budgetAmount})`);
+
+    return this.prisma.job.update({
+      where: { id: jobId },
+      data: { status: 'COMPLETED' },
     });
   }
 }

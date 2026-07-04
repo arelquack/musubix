@@ -140,4 +140,12 @@ export class StellarServiceService {
       throw error;
     }
   }
+
+  /**
+   * Mock trigger for Path Payment upon job approval
+   */
+  async triggerPathPayment(jobId: string, amount: number) {
+    this.logger.log(`[MOCK] triggerPathPayment executed for Job ${jobId}. Paid out ${amount}.`);
+    return { status: 'SUCCESS', hash: 'mock_payment_hash' };
+  }
 }

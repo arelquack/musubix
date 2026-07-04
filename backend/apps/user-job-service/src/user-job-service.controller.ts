@@ -16,7 +16,27 @@ export class UserJobServiceController {
   }
 
   @MessagePattern({ cmd: 'get_jobs' })
-  async getJobs() {
-    return this.userJobServiceService.getJobs();
+  getJobs(query: any) {
+    return this.userJobServiceService.getJobs(query);
+  }
+
+  @MessagePattern({ cmd: 'accept_job' })
+  acceptJob(data: { jobId: string; freelancerId: string }) {
+    return this.userJobServiceService.acceptJob(data.jobId, data.freelancerId);
+  }
+
+  @MessagePattern({ cmd: 'lock_escrow' })
+  lockEscrow(data: { jobId: string }) {
+    return this.userJobServiceService.lockEscrow(data.jobId);
+  }
+
+  @MessagePattern({ cmd: 'submit_work' })
+  submitWork(data: { jobId: string; workSubmission: string }) {
+    return this.userJobServiceService.submitWork(data.jobId, data.workSubmission);
+  }
+
+  @MessagePattern({ cmd: 'approve_work' })
+  approveWork(data: { jobId: string }) {
+    return this.userJobServiceService.approveWork(data.jobId);
   }
 }

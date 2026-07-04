@@ -17,8 +17,9 @@ enum Role {
 
 enum JobStatus {
   OPEN
+  IN_PROGRESS
   LOCKED
-  REVIEW
+  IN_REVIEW
   COMPLETED
 }
 
@@ -43,6 +44,7 @@ model Job {
   clientId      String
   freelancerId  String?
   escrowId      String?  // Reference to Soroban contract state
+  workSubmission String? // Freelancer's submitted work (e.g., URL or text)
   client        User     @relation("ClientJobs", fields: [clientId], references: [id])
   freelancer    User?    @relation("FreelancerJobs", fields: [freelancerId], references: [id])
 }

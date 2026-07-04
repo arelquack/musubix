@@ -11,7 +11,7 @@ export default function ClientDashboard() {
 
   const fetchJobs = async () => {
     try {
-      const res = await fetch('http://localhost:4000/jobs');
+      const res = await fetch('http://localhost:4000/jobs?clientId=mock-client-id');
       const data = await res.json();
       setJobs(data);
     } catch (e) {
@@ -36,6 +36,17 @@ export default function ClientDashboard() {
       fetchJobs();
     } catch (e) {
       console.error('Failed to post job', e);
+    }
+  };
+
+  const handleAction = async (jobId: string, action: string) => {
+    try {
+      await fetch(`http://localhost:4000/jobs/${jobId}/${action}`, {
+        method: 'POST',
+      });
+      fetchJobs();
+    } catch (e) {
+      console.error(`Failed to ${action} job`, e);
     }
   };
 
@@ -84,9 +95,32 @@ export default function ClientDashboard() {
                 <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-full">{job.status}</span>
               </div>
               <p className="text-sm text-slate-600 mb-4 line-clamp-2">{job.description}</p>
-              <div className="flex justify-between items-center">
+              
+              {job.status === 'IN_REVIEW' && job.workSubmission && (
+                <div className="mb-4 p-3 bg-slate-50 rounded border border-slate-200">
+                  <span className="text-xs font-semibold text-slate-500 uppercase">Freelancer Submission:</span>
+                  <p className="text-sm text-slate-700 mt-1 break-all">{job.workSubmission}</p>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center mt-auto">
                 <span className="font-medium text-brand">{job.budgetAmount} {job.currency}</span>
-                <Button variant="outline" size="sm">View Details</Button>
+                
+                {job.status === 'OPEN' && (
+                  <span className="text-xs text-slate-400">Waiting for freelancer...</span>
+                )}
+                {job.status === 'IN_PROGRESS' && (
+                  <Button variant="primary" size="sm" onClick={() => handleAction(job.id, 'lock')}>Lock Escrow</Button>
+                )}
+                {job.status === 'LOCKED' && (
+                  <span className="text-xs text-brand font-medium">Funds Locked 🔒</span>
+                )}
+                {job.status === 'IN_REVIEW' && (
+                  <Button variant="success" size="sm" onClick={() => handleAction(job.id, 'approve')}>Approve & Pay</Button>
+                )}
+                {job.status === 'COMPLETED' && (
+                  <span className="text-xs text-emerald-600 font-bold">PAID ✓</span>
+                )}
               </div>
             </Card>
           ))

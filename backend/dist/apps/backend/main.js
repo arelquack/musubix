@@ -92,8 +92,20 @@ let AppController = class AppController {
     createJob(createJobDto) {
         return this.userJobClient.send({ cmd: 'create_job' }, createJobDto);
     }
-    getJobs() {
-        return this.userJobClient.send({ cmd: 'get_jobs' }, {});
+    getJobs(query) {
+        return this.userJobClient.send({ cmd: 'get_jobs' }, query);
+    }
+    acceptJob(id, body) {
+        return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerId: body.freelancerId });
+    }
+    lockEscrow(id) {
+        return this.userJobClient.send({ cmd: 'lock_escrow' }, { jobId: id });
+    }
+    submitWork(id, body) {
+        return this.userJobClient.send({ cmd: 'submit_work' }, { jobId: id, workSubmission: body.workSubmission });
+    }
+    approveWork(id) {
+        return this.userJobClient.send({ cmd: 'approve_work' }, { jobId: id });
     }
 };
 exports.AppController = AppController;
@@ -106,10 +118,41 @@ __decorate([
 ], AppController.prototype, "createJob", null);
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getJobs", null);
+__decorate([
+    (0, common_1.Post)(':id/accept'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "acceptJob", null);
+__decorate([
+    (0, common_1.Post)(':id/lock'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "lockEscrow", null);
+__decorate([
+    (0, common_1.Post)(':id/submit'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "submitWork", null);
+__decorate([
+    (0, common_1.Post)(':id/approve'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "approveWork", null);
 exports.AppController = AppController = __decorate([
     (0, common_1.Controller)('jobs'),
     __param(1, (0, common_1.Inject)('USER_JOB_SERVICE')),

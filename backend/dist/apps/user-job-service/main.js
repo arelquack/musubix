@@ -82,8 +82,20 @@ let UserJobServiceController = class UserJobServiceController {
             job,
         };
     }
-    async getJobs() {
-        return this.userJobServiceService.getJobs();
+    getJobs(query) {
+        return this.userJobServiceService.getJobs(query);
+    }
+    acceptJob(data) {
+        return this.userJobServiceService.acceptJob(data.jobId, data.freelancerId);
+    }
+    lockEscrow(data) {
+        return this.userJobServiceService.lockEscrow(data.jobId);
+    }
+    submitWork(data) {
+        return this.userJobServiceService.submitWork(data.jobId, data.workSubmission);
+    }
+    approveWork(data) {
+        return this.userJobServiceService.approveWork(data.jobId);
     }
 };
 exports.UserJobServiceController = UserJobServiceController;
@@ -97,9 +109,33 @@ __decorate([
 __decorate([
     (0, microservices_1.MessagePattern)({ cmd: 'get_jobs' }),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "getJobs", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'accept_job' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "acceptJob", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'lock_escrow' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "lockEscrow", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'submit_work' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "submitWork", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'approve_work' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "approveWork", null);
 exports.UserJobServiceController = UserJobServiceController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [typeof (_a = typeof user_job_service_service_1.UserJobServiceService !== "undefined" && user_job_service_service_1.UserJobServiceService) === "function" ? _a : Object])
@@ -172,15 +208,61 @@ let UserJobServiceService = class UserJobServiceService {
             },
         });
     }
-    async getJobs() {
+    async getJobs(query = {}) {
+        const where = {};
+        if (query.clientId)
+            where.clientId = query.clientId;
+        if (query.freelancerId)
+            where.freelancerId = query.freelancerId;
+        if (query.status)
+            where.status = query.status;
         return this.prisma.job.findMany({
-            where: { status: 'OPEN' },
+            where,
             orderBy: { id: 'desc' },
             include: {
-                client: {
-                    select: { name: true }
-                }
-            }
+                client: { select: { name: true } },
+                freelancer: { select: { name: true } },
+            },
+        });
+    }
+    async acceptJob(jobId, freelancerId) {
+        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        if (!job || job.status !== 'OPEN')
+            throw new Error('Job is not available');
+        return this.prisma.job.update({
+            where: { id: jobId },
+            data: {
+                status: 'IN_PROGRESS',
+                freelancerId,
+            },
+        });
+    }
+    async lockEscrow(jobId) {
+        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        if (!job || job.status !== 'IN_PROGRESS')
+            throw new Error('Job is not in progress');
+        return this.prisma.job.update({
+            where: { id: jobId },
+            data: { status: 'LOCKED' },
+        });
+    }
+    async submitWork(jobId, workSubmission) {
+        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        if (!job || job.status !== 'LOCKED')
+            throw new Error('Job escrow is not locked');
+        return this.prisma.job.update({
+            where: { id: jobId },
+            data: { status: 'IN_REVIEW', workSubmission },
+        });
+    }
+    async approveWork(jobId) {
+        const job = await this.prisma.job.findUnique({ where: { id: jobId } });
+        if (!job || job.status !== 'IN_REVIEW')
+            throw new Error('Job is not in review');
+        console.log(`[STUB] Calling StellarService.triggerPathPayment(${jobId}, ${job.budgetAmount})`);
+        return this.prisma.job.update({
+            where: { id: jobId },
+            data: { status: 'COMPLETED' },
         });
     }
 };
