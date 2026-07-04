@@ -4,9 +4,4 @@ import { StellarServiceService } from './stellar-service.service';
 @Controller()
 export class StellarServiceController {
   constructor(private readonly stellarServiceService: StellarServiceService) {}
-
-  @Get()
-  getHello(): string {
-    return this.stellarServiceService.getHello();
-  }
 }

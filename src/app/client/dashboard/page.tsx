@@ -14,6 +14,18 @@ export default function ClientDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ title: '', description: '', budgetAmount: '' });
   const [processingJob, setProcessingJob] = useState<string | null>(null);
+  const [usdToXlmRate, setUsdToXlmRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.stellar?.usd) {
+          setUsdToXlmRate(1 / data.stellar.usd);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const fetchJobs = async () => {
     try {
@@ -39,10 +51,14 @@ export default function ClientDashboard() {
       return;
     }
     try {
+      const xlmAmount = usdToXlmRate 
+        ? (parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)
+        : formData.budgetAmount;
+
       await fetch('http://localhost:4000/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, clientPubKey: address }),
+        body: JSON.stringify({ ...formData, budgetAmount: xlmAmount, currency: 'XLM', clientPubKey: address }),
       });
       setShowForm(false);
       setFormData({ title: '', description: '', budgetAmount: '' });
@@ -214,8 +230,13 @@ export default function ClientDashboard() {
               <textarea required className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" rows={3} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}></textarea>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Budget (XLM)</label>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Budget (USD)</label>
               <input required type="number" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.budgetAmount} onChange={(e) => setFormData({...formData, budgetAmount: e.target.value})} />
+              {usdToXlmRate && formData.budgetAmount && (
+                <p className="text-xs text-blue-400 mt-1">
+                  ≈ {(parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)} XLM
+                </p>
+              )}
             </div>
             <Button type="submit" variant="success" className="self-start">Submit Job</Button>
           </form>

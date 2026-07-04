@@ -32,7 +32,34 @@ export class StellarServiceService implements OnModuleInit {
     if (this.treasuryPubKey) return;
     try {
       this.logger.log('\n--- SETTING UP GLOBAL TREASURY FOR IDR DEX LIQUIDITY ---');
-      const treasury = await this.generateAndFundWallet();
+      
+      // Fetch live XLM/IDR rate
+      let xlmToIdrRate = 3804; // Fallback
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=idr');
+        const data = await response.json();
+        if (data?.stellar?.idr) {
+          xlmToIdrRate = Math.round(data.stellar.idr);
+          this.logger.log(`Fetched Live Rate: 1 XLM = ${xlmToIdrRate} IDR`);
+        }
+      } catch (e) {
+        this.logger.error('Failed to fetch live rate, using fallback', e);
+      }
+
+      let treasury: { publicKey: string, secretKey: string };
+      const fs = require('fs');
+      const path = require('path');
+      const treasuryFile = path.join(process.cwd(), 'treasury.json');
+
+      if (fs.existsSync(treasuryFile)) {
+        treasury = JSON.parse(fs.readFileSync(treasuryFile, 'utf8'));
+        this.logger.log(`Loaded existing Treasury from ${treasuryFile}`);
+      } else {
+        treasury = await this.generateAndFundWallet();
+        fs.writeFileSync(treasuryFile, JSON.stringify(treasury, null, 2));
+        this.logger.log(`Saved new Treasury to ${treasuryFile}`);
+      }
+      
       this.treasuryPubKey = treasury.publicKey;
       const treasuryKeypair = Keypair.fromSecret(treasury.secretKey);
       const idrAsset = new Asset('IDR', treasury.publicKey);
@@ -47,15 +74,15 @@ export class StellarServiceService implements OnModuleInit {
       .addOperation(Operation.manageSellOffer({
         selling: idrAsset,
         buying: Asset.native(),
-        amount: '100000',
-        price: '1', // 1 IDR = 1 XLM for simplicity
+        amount: '100000000', // 100M IDR liquidity
+        price: { n: 1, d: xlmToIdrRate }, // 1 IDR = 1/Rate XLM
       }))
       .setTimeout(30)
       .build();
       
       manageSellOfferTx.sign(treasuryKeypair);
       await this.horizonServer.submitTransaction(manageSellOfferTx);
-      this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR on Testnet DEX.`);
+      this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR at 1 XLM = ${xlmToIdrRate} IDR on Testnet DEX.`);
     } catch (e) {
       this.logger.error('Failed to setup Treasury', e);
     }

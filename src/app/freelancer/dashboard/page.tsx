@@ -16,11 +16,21 @@ export default function FreelancerDashboard() {
 
   const [treasuryPubKey, setTreasuryPubKey] = useState<string | null>(null);
   const [processingJob, setProcessingJob] = useState<string | null>(null);
+  const [xlmToIdrRate, setXlmToIdrRate] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('http://localhost:4000/jobs/treasury')
       .then(res => res.json())
       .then(data => setTreasuryPubKey(data.issuerPubKey))
+      .catch(console.error);
+
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=idr')
+      .then(res => res.json())
+      .then(data => {
+        if (data?.stellar?.idr) {
+          setXlmToIdrRate(data.stellar.idr);
+        }
+      })
       .catch(console.error);
   }, []);
 
@@ -202,9 +212,16 @@ export default function FreelancerDashboard() {
                 </div>
               )}
 
-              <div className="flex justify-between items-center mt-auto">
+              <div className="flex flex-col mt-auto">
                 <span className="font-medium text-slate-200">{job.budgetAmount} {job.currency}</span>
-                
+                {xlmToIdrRate && job.currency === 'XLM' && (
+                  <span className="text-xs text-green-400 font-semibold mt-1">
+                    ≈ {(parseFloat(job.budgetAmount) * xlmToIdrRate).toLocaleString('id-ID')} IDR
+                  </span>
+                )}
+              </div>
+              
+              <div className="flex justify-end items-center mt-4">
                 {job.status === 'OPEN' && (
                   <Button variant="outline" size="sm" onClick={() => handleAction(job.id, 'accept')}>Accept Job</Button>
                 )}

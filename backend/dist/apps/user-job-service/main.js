@@ -407,7 +407,31 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
             return;
         try {
             this.logger.log('\n--- SETTING UP GLOBAL TREASURY FOR IDR DEX LIQUIDITY ---');
-            const treasury = await this.generateAndFundWallet();
+            let xlmToIdrRate = 3804;
+            try {
+                const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=idr');
+                const data = await response.json();
+                if (data?.stellar?.idr) {
+                    xlmToIdrRate = Math.round(data.stellar.idr);
+                    this.logger.log(`Fetched Live Rate: 1 XLM = ${xlmToIdrRate} IDR`);
+                }
+            }
+            catch (e) {
+                this.logger.error('Failed to fetch live rate, using fallback', e);
+            }
+            let treasury;
+            const fs = __webpack_require__(10);
+            const path = __webpack_require__(11);
+            const treasuryFile = path.join(process.cwd(), 'treasury.json');
+            if (fs.existsSync(treasuryFile)) {
+                treasury = JSON.parse(fs.readFileSync(treasuryFile, 'utf8'));
+                this.logger.log(`Loaded existing Treasury from ${treasuryFile}`);
+            }
+            else {
+                treasury = await this.generateAndFundWallet();
+                fs.writeFileSync(treasuryFile, JSON.stringify(treasury, null, 2));
+                this.logger.log(`Saved new Treasury to ${treasuryFile}`);
+            }
             this.treasuryPubKey = treasury.publicKey;
             const treasuryKeypair = stellar_sdk_1.Keypair.fromSecret(treasury.secretKey);
             const idrAsset = new stellar_sdk_1.Asset('IDR', treasury.publicKey);
@@ -420,14 +444,14 @@ let StellarServiceService = StellarServiceService_1 = class StellarServiceServic
                 .addOperation(stellar_sdk_1.Operation.manageSellOffer({
                 selling: idrAsset,
                 buying: stellar_sdk_1.Asset.native(),
-                amount: '100000',
-                price: '1',
+                amount: '100000000',
+                price: { n: 1, d: xlmToIdrRate },
             }))
                 .setTimeout(30)
                 .build();
             manageSellOfferTx.sign(treasuryKeypair);
             await this.horizonServer.submitTransaction(manageSellOfferTx);
-            this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR on Testnet DEX.`);
+            this.logger.log(`DEX Liquidity Provided! Treasury is now selling IDR at 1 XLM = ${xlmToIdrRate} IDR on Testnet DEX.`);
         }
         catch (e) {
             this.logger.error('Failed to setup Treasury', e);
@@ -662,6 +686,18 @@ exports.StellarServiceService = StellarServiceService = StellarServiceService_1 
 /***/ ((module) => {
 
 module.exports = require("@stellar/stellar-sdk");
+
+/***/ }),
+/* 10 */
+/***/ ((module) => {
+
+module.exports = require("fs");
+
+/***/ }),
+/* 11 */
+/***/ ((module) => {
+
+module.exports = require("path");
 
 /***/ })
 /******/ 	]);

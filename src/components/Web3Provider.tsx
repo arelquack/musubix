@@ -45,9 +45,10 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
         setBalance(nativeBalance.balance);
       }
       
-      const idrBal = account.balances.find((b) => (b as any).asset_code === 'IDR');
-      if (idrBal) {
-        setIdrBalance(idrBal.balance);
+      const idrBalances = account.balances.filter((b) => (b as any).asset_code === 'IDR');
+      if (idrBalances.length > 0) {
+        const totalIdr = idrBalances.reduce((acc, curr) => acc + parseFloat(curr.balance), 0);
+        setIdrBalance(totalIdr.toString());
       } else {
         setIdrBalance('0');
       }
