@@ -53,6 +53,15 @@ export default function ClientDashboard() {
       alert('Please connect your Web3 wallet first.');
       return;
     }
+    if (!aiAnalysis) {
+      alert('Please analyze your job specs with AI first before posting.');
+      return;
+    }
+    if (aiAnalysis.score < 60) {
+      const confirmPost = window.confirm(`Warning: Your job specs received a poor AI score (${aiAnalysis.score}/100) indicating it might be underpriced or unclear. Are you sure you want to post this anyway?`);
+      if (!confirmPost) return;
+    }
+
     try {
       const xlmAmount = usdToXlmRate 
         ? (parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)
@@ -339,12 +348,14 @@ export default function ClientDashboard() {
               </div>
               
               {aiAnalysis && (
-                <div style={{ padding: '16px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: aiAnalysis.score >= 70 ? 'rgba(92,138,110,0.1)' : 'rgba(200,73,60,0.08)', borderColor: aiAnalysis.score >= 70 ? 'var(--matsu)' : 'var(--shu)' }}>
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: aiAnalysis.score >= 80 ? 'rgba(92,138,110,0.1)' : aiAnalysis.score >= 60 ? 'rgba(201,162,75,0.1)' : 'rgba(200,73,60,0.08)', borderColor: aiAnalysis.score >= 80 ? 'var(--matsu)' : aiAnalysis.score >= 60 ? 'var(--kin)' : 'var(--shu)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: aiAnalysis.score >= 70 ? 'var(--matsu)' : 'var(--shu)' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: aiAnalysis.score >= 80 ? 'var(--matsu)' : aiAnalysis.score >= 60 ? 'var(--kin)' : 'var(--shu)' }}>
                       {aiAnalysis.score}/100
                     </div>
-                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-2)' }}>AI Quality Score</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-2)' }}>
+                      {aiAnalysis.score >= 80 ? 'Good Job Specs' : aiAnalysis.score >= 60 ? 'Average Job Specs' : 'Underpriced / Poor Specs'}
+                    </div>
                   </div>
                   <p style={{ fontSize: '14px', color: 'var(--text-1)', margin: 0 }}>{aiAnalysis.feedback}</p>
                 </div>

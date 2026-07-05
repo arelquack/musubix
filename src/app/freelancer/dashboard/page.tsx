@@ -261,15 +261,22 @@ export default function FreelancerDashboard() {
                 <p className="desc">{job.description}</p>
                 
                 {job.aiScore !== null && job.aiScore !== undefined && (
-                  <div style={{ padding: '12px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: job.aiScore >= 70 ? 'rgba(92,138,110,0.1)' : 'rgba(200,73,60,0.08)', borderColor: job.aiScore >= 70 ? 'var(--matsu)' : 'var(--shu)', marginTop: '4px' }}>
-                    {job.aiScore >= 70 ? (
+                  <div style={{ padding: '12px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: job.aiScore >= 80 ? 'rgba(92,138,110,0.1)' : job.aiScore >= 60 ? 'rgba(201,162,75,0.1)' : 'rgba(200,73,60,0.08)', borderColor: job.aiScore >= 80 ? 'var(--matsu)' : job.aiScore >= 60 ? 'var(--kin)' : 'var(--shu)', marginTop: '4px' }}>
+                    {job.aiScore >= 80 ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--matsu)' }}>
-                        AI Score: {job.aiScore}/100 - Good Job Specs
+                        ✅ AI Score: {job.aiScore}/100 - Good Job Specs
+                      </div>
+                    ) : job.aiScore >= 60 ? (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', color: 'var(--kin)', marginBottom: '4px' }}>
+                          ⚠️ AI Score: {job.aiScore}/100 - Average Job Specs
+                        </div>
+                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-1)' }}>{job.aiFeedback}</p>
                       </div>
                     ) : (
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', color: 'var(--shu)', marginBottom: '4px' }}>
-                          ⚠️ AI Warning (Score: {job.aiScore}/100)
+                          🚨 AI Warning (Score: {job.aiScore}/100) - Underpriced / Poor Specs
                         </div>
                         <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-1)' }}>{job.aiFeedback}</p>
                       </div>
