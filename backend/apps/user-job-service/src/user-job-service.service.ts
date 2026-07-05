@@ -145,8 +145,15 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     if (!job.client?.stellarPubKey || !job.freelancer?.stellarPubKey) throw new Error('Missing wallets');
 
     console.log(`\n--- DEPLOYING ESCROW FOR JOB ${jobId} ---`);
-    const deployer = await this.stellarService.generateAndFundWallet();
-    const contractId = await this.stellarService.deployEscrowInstance(deployer.secretKey);
+    let contractId: string;
+    try {
+      const deployer = await this.stellarService.generateAndFundWallet();
+      contractId = await this.stellarService.deployEscrowInstance(deployer.secretKey);
+    } catch (e: any) {
+      console.error('Failed to deploy escrow on blockchain:', e);
+      // We throw a standardized error that the gateway can forward to the client
+      throw new (require('@nestjs/microservices').RpcException)('Network error while deploying escrow contract on-chain. Please ensure your connection is stable and try again.');
+    }
 
     // Save escrowId but keep status IN_PROGRESS because frontend will handle init and deposit
     return this.prisma.job.update({
@@ -194,5 +201,30 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
       where: { id: jobId },
       data: { status: status as any },
     });
+  }
+
+  async analyzeJobSpecs(title: string, description: string, budget: string) {
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is missing in backend environment variables');
+    }
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+
+    const prompt = `Act as a freelance platform QA. Analyze this job: Title: ${title}, Desc: ${description}, Budget: $${budget}. Return ONLY a JSON object with two keys: 'score' (a number from 1-100 indicating clarity and price fairness) and 'feedback' (a 1-sentence concise feedback).`;
+    
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    try {
+      // Strip markdown code block backticks if they exist
+      const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
+      const parsed = JSON.parse(jsonStr);
+      return parsed;
+    } catch (e) {
+      console.error('Failed to parse Gemini response:', text);
+      throw new Error('AI analysis failed to produce valid JSON');
+    }
   }
 }

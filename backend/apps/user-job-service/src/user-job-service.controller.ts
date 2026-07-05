@@ -49,4 +49,9 @@ export class UserJobServiceController {
   syncStatus(data: { jobId: string; status: string }) {
     return this.userJobServiceService.syncStatus(data.jobId, data.status);
   }
+
+  @MessagePattern({ cmd: 'analyze_job' })
+  analyzeJob(data: { title: string; description: string; budget: string }) {
+    return this.userJobServiceService.analyzeJobSpecs(data.title, data.description, data.budget);
+  }
 }

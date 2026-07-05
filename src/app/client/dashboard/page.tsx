@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useWeb3 } from '@/components/Web3Provider';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
-import { Contract, nativeToScVal, TransactionBuilder, rpc, xdr } from '@stellar/stellar-sdk';
+import { Contract, nativeToScVal, TransactionBuilder, rpc, xdr, Memo } from '@stellar/stellar-sdk';
 import { server, TESTNET_NETWORK_PASSPHRASE, TESTNET_NATIVE_TOKEN, ESCROW_CONTRACT_ID } from '@/lib/soroban';
 
 export default function ClientDashboard() {
@@ -15,6 +15,8 @@ export default function ClientDashboard() {
   const [formData, setFormData] = useState({ title: '', description: '', budgetAmount: '' });
   const [processingJob, setProcessingJob] = useState<string | null>(null);
   const [usdToXlmRate, setUsdToXlmRate] = useState<number | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<{score: number, feedback: string} | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd')
@@ -62,9 +64,36 @@ export default function ClientDashboard() {
       });
       setShowForm(false);
       setFormData({ title: '', description: '', budgetAmount: '' });
+      setAiAnalysis(null);
       fetchJobs();
     } catch (e) {
       console.error('Failed to post job', e);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!formData.title || !formData.description || !formData.budgetAmount) {
+      alert('Please fill out all fields before analyzing.');
+      return;
+    }
+    setIsAnalyzing(true);
+    try {
+      const res = await fetch('http://localhost:4000/jobs/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          budget: formData.budgetAmount,
+        }),
+      });
+      const data = await res.json();
+      setAiAnalysis(data);
+    } catch (e) {
+      console.error('Failed to analyze job', e);
+      alert('Failed to analyze job specs with AI.');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -128,7 +157,10 @@ export default function ClientDashboard() {
       setProcessingJob(jobId);
       try {
         const res = await fetch(`http://localhost:4000/jobs/${jobId}/lock`, { method: 'POST' });
-        if (!res.ok) throw new Error('Backend failed to deploy escrow contract');
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || 'Network Error: Failed to communicate with blockchain node. Please try again.');
+        }
         const updatedJob = await res.json();
         
         // After backend initializes, frontend submits the init and deposit
@@ -252,33 +284,58 @@ export default function ClientDashboard() {
               </button>
             </div>
           )}
-          <Button variant="outline" onClick={() => setShowForm(!showForm)}>
+          <Button variant="outline" onClick={() => {
+            setShowForm(!showForm);
+            setAiAnalysis(null);
+          }}>
             {showForm ? 'Cancel Posting' : 'Post New Job'}
           </Button>
         </div>
       </div>
 
       {showForm && (
-        <Card className="mb-8">
+        <Card className="mb-8 border border-slate-800 bg-slate-900/50">
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Job Title</label>
-              <input required type="text" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.title} onChange={(e) => setFormData({...formData, title: e.target.value})} />
+              <input required type="text" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.title} onChange={(e) => {setFormData({...formData, title: e.target.value}); setAiAnalysis(null);}} />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
-              <textarea required className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" rows={3} value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})}></textarea>
+              <textarea required className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" rows={3} value={formData.description} onChange={(e) => {setFormData({...formData, description: e.target.value}); setAiAnalysis(null);}}></textarea>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Budget (USD)</label>
-              <input required type="number" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.budgetAmount} onChange={(e) => setFormData({...formData, budgetAmount: e.target.value})} />
+              <input required type="number" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.budgetAmount} onChange={(e) => {setFormData({...formData, budgetAmount: e.target.value}); setAiAnalysis(null);}} />
               {usdToXlmRate && formData.budgetAmount && (
                 <p className="text-xs text-blue-400 mt-1">
                   ≈ {(parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)} XLM
                 </p>
               )}
             </div>
-            <Button type="submit" variant="success" className="self-start">Submit Job</Button>
+            
+            {aiAnalysis && (
+              <div className={`p-4 rounded-lg border ${aiAnalysis.score >= 70 ? 'bg-green-950/30 border-green-900' : 'bg-yellow-950/30 border-yellow-900'}`}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`text-2xl font-bold ${aiAnalysis.score >= 70 ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {aiAnalysis.score}/100
+                  </div>
+                  <div className="text-sm font-medium text-slate-300">AI Quality Score</div>
+                </div>
+                <p className="text-sm text-slate-400">{aiAnalysis.feedback}</p>
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <Button type="button" variant="outline" onClick={handleAnalyze} disabled={isAnalyzing}>
+                {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}
+              </Button>
+              {aiAnalysis && (
+                <Button type="submit" variant="success">
+                  Confirm & Post Job
+                </Button>
+              )}
+            </div>
           </form>
         </Card>
       )}

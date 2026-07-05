@@ -49,4 +49,9 @@ export class AppController {
   syncStatus(@Param('id') id: string, @Body() body: { status: string }) {
     return this.userJobClient.send({ cmd: 'sync_status' }, { jobId: id, status: body.status });
   }
+
+  @Post('analyze')
+  analyzeJob(@Body() body: { title: string; description: string; budget: string }) {
+    return this.userJobClient.send({ cmd: 'analyze_job' }, body);
+  }
 }

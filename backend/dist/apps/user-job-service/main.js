@@ -103,6 +103,9 @@ let UserJobServiceController = class UserJobServiceController {
     syncStatus(data) {
         return this.userJobServiceService.syncStatus(data.jobId, data.status);
     }
+    analyzeJob(data) {
+        return this.userJobServiceService.analyzeJobSpecs(data.title, data.description, data.budget);
+    }
 };
 exports.UserJobServiceController = UserJobServiceController;
 __decorate([
@@ -154,6 +157,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "syncStatus", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'analyze_job' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "analyzeJob", null);
 exports.UserJobServiceController = UserJobServiceController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [typeof (_a = typeof user_job_service_service_1.UserJobServiceService !== "undefined" && user_job_service_service_1.UserJobServiceService) === "function" ? _a : Object])
@@ -311,8 +320,15 @@ let UserJobServiceService = class UserJobServiceService {
         if (!job.client?.stellarPubKey || !job.freelancer?.stellarPubKey)
             throw new Error('Missing wallets');
         console.log(`\n--- DEPLOYING ESCROW FOR JOB ${jobId} ---`);
-        const deployer = await this.stellarService.generateAndFundWallet();
-        const contractId = await this.stellarService.deployEscrowInstance(deployer.secretKey);
+        let contractId;
+        try {
+            const deployer = await this.stellarService.generateAndFundWallet();
+            contractId = await this.stellarService.deployEscrowInstance(deployer.secretKey);
+        }
+        catch (e) {
+            console.error('Failed to deploy escrow on blockchain:', e);
+            throw new ((__webpack_require__(2).RpcException))('Network error while deploying escrow contract on-chain. Please ensure your connection is stable and try again.');
+        }
         return this.prisma.job.update({
             where: { id: jobId },
             data: { escrowId: contractId },
@@ -353,6 +369,27 @@ let UserJobServiceService = class UserJobServiceService {
             where: { id: jobId },
             data: { status: status },
         });
+    }
+    async analyzeJobSpecs(title, description, budget) {
+        const { GoogleGenerativeAI } = __webpack_require__(12);
+        if (!process.env.GEMINI_API_KEY) {
+            throw new Error('GEMINI_API_KEY is missing in backend environment variables');
+        }
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+        const prompt = `Act as a freelance platform QA. Analyze this job: Title: ${title}, Desc: ${description}, Budget: $${budget}. Return ONLY a JSON object with two keys: 'score' (a number from 1-100 indicating clarity and price fairness) and 'feedback' (a 1-sentence concise feedback).`;
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        try {
+            const jsonStr = text.replace(/```json\n?|\n?```/g, '').trim();
+            const parsed = JSON.parse(jsonStr);
+            return parsed;
+        }
+        catch (e) {
+            console.error('Failed to parse Gemini response:', text);
+            throw new Error('AI analysis failed to produce valid JSON');
+        }
     }
 };
 exports.UserJobServiceService = UserJobServiceService;
@@ -698,6 +735,12 @@ module.exports = require("fs");
 /***/ ((module) => {
 
 module.exports = require("path");
+
+/***/ }),
+/* 12 */
+/***/ ((module) => {
+
+module.exports = require("@google/generative-ai");
 
 /***/ })
 /******/ 	]);
