@@ -173,23 +173,21 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async approveWork(jobId: string) {
+  async approveWork(jobId: string, rating?: number, review?: string) {
     const job = await this.prisma.job.findUnique({ 
       where: { id: jobId },
       include: { client: true }
     });
-    if (!job || job.status !== 'IN_REVIEW') throw new Error('Job is not in review');
-    if (!job.client?.stellarSecret || !job.escrowId) throw new Error('Missing escrow or client secret');
+    if (!job || job.status !== 'IN_REVIEW') throw new Error('Job is not ready for approval');
+    if (!job.escrowId) throw new Error('Missing escrow ID');
 
-    console.log(`\n--- INITIATING SOROBAN PAYOUT FOR JOB ${jobId} ---`);
-    
-    await this.stellarService.releaseEscrow(job.escrowId, job.client.stellarSecret);
-    
-    console.log('--- SOROBAN PAYOUT COMPLETE ---\n');
-
+    // We only save ratings here. The actual Soroban approval is done on frontend.
     return this.prisma.job.update({
       where: { id: jobId },
-      data: { status: 'COMPLETED' },
+      data: { 
+        clientRating: rating,
+        clientReview: review
+      },
     });
   }
 
@@ -226,5 +224,21 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
       console.error('Failed to parse Gemini response:', text);
       throw new Error('AI analysis failed to produce valid JSON');
     }
+  }
+
+  async getFreelancerProfile(pubkey: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { stellarPubKey: pubkey },
+      include: {
+        jobsTaken: {
+          where: { 
+            status: { in: ['COMPLETED', 'WITHDRAWN'] }
+          },
+          orderBy: { id: 'desc' }
+        }
+      }
+    });
+    if (!user) throw new Error('Freelancer not found');
+    return user;
   }
 }

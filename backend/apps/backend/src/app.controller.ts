@@ -41,8 +41,8 @@ export class AppController {
   }
 
   @Post(':id/approve')
-  approveWork(@Param('id') id: string) {
-    return this.userJobClient.send({ cmd: 'approve_work' }, { jobId: id });
+  approveWork(@Param('id') id: string, @Body() body: { rating?: number; review?: string }) {
+    return this.userJobClient.send({ cmd: 'approve_work' }, { jobId: id, rating: body.rating, review: body.review });
   }
 
   @Post(':id/sync')
@@ -53,5 +53,10 @@ export class AppController {
   @Post('analyze')
   analyzeJob(@Body() body: { title: string; description: string; budget: string }) {
     return this.userJobClient.send({ cmd: 'analyze_job' }, body);
+  }
+
+  @Get('/freelancers/:pubkey')
+  getFreelancerProfile(@Param('pubkey') pubkey: string) {
+    return this.userJobClient.send({ cmd: 'get_freelancer' }, { pubkey });
   }
 }

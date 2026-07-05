@@ -18,6 +18,8 @@ export default function ClientDashboard() {
   const [usdToXlmRate, setUsdToXlmRate] = useState<number | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<{score: number, feedback: string} | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [ratingModal, setRatingModal] = useState<{jobId: string, escrowId: string} | null>(null);
+  const [ratingData, setRatingData] = useState({ rating: 5, review: '' });
 
   useEffect(() => {
     fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd')
@@ -182,9 +184,25 @@ export default function ClientDashboard() {
       return;
     }
     if (action === 'approve') {
-      await handleSorobanTx(jobId, contractId || ESCROW_CONTRACT_ID, 'approve_and_pay', 'COMPLETED', [
-        new Contract(TESTNET_NATIVE_TOKEN).address().toScVal()
-      ]);
+      setProcessingJob(jobId);
+      try {
+        const res = await fetch(`http://localhost:4000/jobs/${jobId}/approve`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating: ratingData.rating, review: ratingData.review })
+        });
+        if (!res.ok) throw new Error('Backend approval failed');
+
+        await handleSorobanTx(jobId, contractId!, 'approve_and_pay', 'COMPLETED', [
+          new Contract(TESTNET_NATIVE_TOKEN).address().toScVal()
+        ]);
+        setRatingModal(null);
+      } catch (e: any) {
+        console.error('Approve flow failed:', e);
+        alert(`Approve flow failed: ${e.message}`);
+      } finally {
+        setProcessingJob(null);
+      }
       return;
     }
 
@@ -362,7 +380,7 @@ export default function ClientDashboard() {
                 </div>
               )}
 
-              {job.freelancer?.stellarPubKey && (job.status === 'IN_PROGRESS' || job.status === 'IN_REVIEW' || job.status === 'COMPLETED') && (
+              {job.freelancer?.stellarPubKey && (job.status === 'IN_PROGRESS' || job.status === 'IN_REVIEW' || job.status === 'COMPLETED' || job.status === 'WITHDRAWN') && (
                 <div className="mb-4">
                   <Link href={`/freelancer/profile/${job.freelancer.stellarPubKey}`} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
                     <span>View Freelancer Profile</span>
@@ -389,7 +407,7 @@ export default function ClientDashboard() {
                   <Button 
                     variant="success" 
                     size="sm" 
-                    onClick={() => handleAction(job.id, 'approve', job.escrowId)}
+                    onClick={() => setRatingModal({ jobId: job.id, escrowId: job.escrowId })}
                     disabled={processingJob === job.id}
                   >
                     {processingJob === job.id ? (
@@ -413,6 +431,49 @@ export default function ClientDashboard() {
           ))
         )}
       </div>
+
+      {ratingModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md bg-slate-900 border-slate-800">
+            <h3 className="text-xl font-bold text-white mb-4">Rate Freelancer</h3>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Star Rating</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button 
+                    key={star}
+                    type="button"
+                    onClick={() => setRatingData({ ...ratingData, rating: star })}
+                    className={`text-2xl ${ratingData.rating >= star ? 'text-yellow-400' : 'text-slate-600'}`}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-300 mb-2">Review (Optional)</label>
+              <textarea 
+                className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 rounded-lg p-2" 
+                rows={3} 
+                placeholder="How was working with this freelancer?"
+                value={ratingData.review} 
+                onChange={(e) => setRatingData({...ratingData, review: e.target.value})}
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setRatingModal(null)}>Cancel</Button>
+              <Button 
+                variant="success" 
+                disabled={processingJob === ratingModal.jobId}
+                onClick={() => handleAction(ratingModal.jobId, 'approve', ratingModal.escrowId)}
+              >
+                {processingJob === ratingModal.jobId ? 'Processing...' : 'Submit & Pay'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </PageWrapper>
   );
 }

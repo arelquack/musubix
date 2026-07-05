@@ -98,13 +98,16 @@ let UserJobServiceController = class UserJobServiceController {
         return this.userJobServiceService.submitWork(data.jobId, data.workSubmission);
     }
     approveWork(data) {
-        return this.userJobServiceService.approveWork(data.jobId);
+        return this.userJobServiceService.approveWork(data.jobId, data.rating, data.review);
     }
     syncStatus(data) {
         return this.userJobServiceService.syncStatus(data.jobId, data.status);
     }
     analyzeJob(data) {
         return this.userJobServiceService.analyzeJobSpecs(data.title, data.description, data.budget);
+    }
+    getFreelancer(data) {
+        return this.userJobServiceService.getFreelancerProfile(data.pubkey);
     }
 };
 exports.UserJobServiceController = UserJobServiceController;
@@ -163,6 +166,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "analyzeJob", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'get_freelancer' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "getFreelancer", null);
 exports.UserJobServiceController = UserJobServiceController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [typeof (_a = typeof user_job_service_service_1.UserJobServiceService !== "undefined" && user_job_service_service_1.UserJobServiceService) === "function" ? _a : Object])
@@ -344,21 +353,21 @@ let UserJobServiceService = class UserJobServiceService {
             data: { status: 'IN_REVIEW', workSubmission },
         });
     }
-    async approveWork(jobId) {
+    async approveWork(jobId, rating, review) {
         const job = await this.prisma.job.findUnique({
             where: { id: jobId },
             include: { client: true }
         });
         if (!job || job.status !== 'IN_REVIEW')
-            throw new Error('Job is not in review');
-        if (!job.client?.stellarSecret || !job.escrowId)
-            throw new Error('Missing escrow or client secret');
-        console.log(`\n--- INITIATING SOROBAN PAYOUT FOR JOB ${jobId} ---`);
-        await this.stellarService.releaseEscrow(job.escrowId, job.client.stellarSecret);
-        console.log('--- SOROBAN PAYOUT COMPLETE ---\n');
+            throw new Error('Job is not ready for approval');
+        if (!job.escrowId)
+            throw new Error('Missing escrow ID');
         return this.prisma.job.update({
             where: { id: jobId },
-            data: { status: 'COMPLETED' },
+            data: {
+                clientRating: rating,
+                clientReview: review
+            },
         });
     }
     async syncStatus(jobId, status) {
@@ -390,6 +399,22 @@ let UserJobServiceService = class UserJobServiceService {
             console.error('Failed to parse Gemini response:', text);
             throw new Error('AI analysis failed to produce valid JSON');
         }
+    }
+    async getFreelancerProfile(pubkey) {
+        const user = await this.prisma.user.findUnique({
+            where: { stellarPubKey: pubkey },
+            include: {
+                jobsTaken: {
+                    where: {
+                        status: { in: ['COMPLETED', 'WITHDRAWN'] }
+                    },
+                    orderBy: { id: 'desc' }
+                }
+            }
+        });
+        if (!user)
+            throw new Error('Freelancer not found');
+        return user;
     }
 };
 exports.UserJobServiceService = UserJobServiceService;

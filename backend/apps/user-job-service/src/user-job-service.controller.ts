@@ -41,8 +41,8 @@ export class UserJobServiceController {
   }
 
   @MessagePattern({ cmd: 'approve_work' })
-  approveWork(data: { jobId: string }) {
-    return this.userJobServiceService.approveWork(data.jobId);
+  approveWork(data: { jobId: string; rating?: number; review?: string }) {
+    return this.userJobServiceService.approveWork(data.jobId, data.rating, data.review);
   }
 
   @MessagePattern({ cmd: 'sync_status' })
@@ -53,5 +53,10 @@ export class UserJobServiceController {
   @MessagePattern({ cmd: 'analyze_job' })
   analyzeJob(data: { title: string; description: string; budget: string }) {
     return this.userJobServiceService.analyzeJobSpecs(data.title, data.description, data.budget);
+  }
+
+  @MessagePattern({ cmd: 'get_freelancer' })
+  getFreelancer(data: { pubkey: string }) {
+    return this.userJobServiceService.getFreelancerProfile(data.pubkey);
   }
 }
