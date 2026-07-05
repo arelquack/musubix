@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useWeb3 } from '@/components/Web3Provider';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
-import { Contract, nativeToScVal, TransactionBuilder, rpc, xdr, Memo } from '@stellar/stellar-sdk';
+import { Contract, nativeToScVal, TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { server, TESTNET_NETWORK_PASSPHRASE, TESTNET_NATIVE_TOKEN, ESCROW_CONTRACT_ID } from '@/lib/soroban';
 
 export default function ClientDashboard() {

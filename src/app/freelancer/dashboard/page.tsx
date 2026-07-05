@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 
 import { useWeb3 } from '@/components/Web3Provider';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
-import { TransactionBuilder, Operation, Asset, rpc } from '@stellar/stellar-sdk';
+import { TransactionBuilder, Operation, Asset, Memo } from '@stellar/stellar-sdk';
 import { server, TESTNET_NETWORK_PASSPHRASE } from '@/lib/soroban';
 
 export default function FreelancerDashboard() {
@@ -80,6 +80,7 @@ export default function FreelancerDashboard() {
           destAsset: idrAsset,
           destMin: '0.0000001',
         }))
+        .addMemo(Memo.text(`JOB-${jobId.slice(0, 20)}`))
         .setTimeout(30)
         .build();
 
