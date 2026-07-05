@@ -109,6 +109,53 @@ export default function FreelancerDashboard() {
     }
   };
 
+  const [isTransferringToBank, setIsTransferringToBank] = useState(false);
+
+  const handleTransferToBank = async () => {
+    if (!address) return alert('Connect wallet first.');
+    if (!treasuryPubKey) return alert('Treasury not ready. Please refresh.');
+    if (!idrBalance || parseFloat(idrBalance) <= 0) return alert('No IDR balance to transfer.');
+    
+    const bankAccount = window.prompt("Enter your Bank Account Number (e.g., BCA, Mandiri) to receive Fiat IDR:");
+    if (!bankAccount) return;
+
+    setIsTransferringToBank(true);
+    try {
+      const sourceAccount = await server.getAccount(address);
+      const idrAsset = new Asset('IDR', treasuryPubKey);
+
+      const tx = new TransactionBuilder(sourceAccount, { fee: '1000', networkPassphrase: TESTNET_NETWORK_PASSPHRASE })
+        .addOperation(Operation.payment({
+          destination: treasuryPubKey, // Sending it back to the platform treasury
+          asset: idrAsset,
+          amount: idrBalance,
+        }))
+        .setTimeout(30)
+        .build();
+
+      const { signedTxXdr } = await StellarWalletsKit.signTransaction(tx.toXDR(), { 
+        networkPassphrase: TESTNET_NETWORK_PASSPHRASE, 
+        address 
+      });
+
+      const txRecord = await server.sendTransaction(TransactionBuilder.fromXDR(signedTxXdr, TESTNET_NETWORK_PASSPHRASE) as any);
+      
+      if (txRecord.status === 'ERROR') {
+        throw new Error('Transaction submission failed');
+      }
+
+      alert(`Transfer Initiated! ${idrBalance} IDR is being wired to your bank account: ${bankAccount}\n\n(For this demo, your crypto IDR was burned back to the Treasury)`);
+      setTimeout(() => {
+        window.location.reload(); 
+      }, 2000);
+    } catch (e: any) {
+      console.error(e);
+      alert('Transfer Failed: ' + e.message);
+    } finally {
+      setIsTransferringToBank(false);
+    }
+  };
+
   const handleAction = async (jobId: string, action: string, payload: any = {}) => {
     if (!address) {
       alert('Please connect your Web3 wallet first.');
@@ -170,7 +217,14 @@ export default function FreelancerDashboard() {
                 <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
                 <span className="text-sm font-bold text-green-400">{idrBalance ? parseFloat(idrBalance).toFixed(2) : '0'} IDR</span>
               </div>
-              <button onClick={disconnectWallet} className="ml-4 text-xs text-red-400 hover:text-red-300 transition-colors">
+              <button 
+                onClick={handleTransferToBank} 
+                disabled={isTransferringToBank}
+                className="ml-2 text-xs text-green-400 hover:text-green-300 transition-colors border border-green-900 px-2 py-1 rounded"
+              >
+                {isTransferringToBank ? 'Transferring...' : 'Transfer to Bank'}
+              </button>
+              <button onClick={disconnectWallet} className="ml-2 text-xs text-red-400 hover:text-red-300 transition-colors">
                 Disconnect
               </button>
             </div>

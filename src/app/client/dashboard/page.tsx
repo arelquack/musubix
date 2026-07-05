@@ -168,6 +168,34 @@ export default function ClientDashboard() {
     }
   };
 
+  const [isToppingUp, setIsToppingUp] = useState(false);
+
+  const handleTopUp = async () => {
+    if (!address) return;
+    setIsToppingUp(true);
+    try {
+      const res = await fetch(`https://friendbot.stellar.org?addr=${address}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        if (data.detail === 'account already funded to starting balance') {
+          alert('Top up failed: Your account is already fully funded for testnet (10,000 XLM).');
+        } else {
+          alert(`Top up failed: ${data.detail || data.title || 'Unknown error'}`);
+        }
+      } else {
+        alert('Top up successful! 10,000 testnet XLM has been added to your wallet.');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      }
+    } catch (e: any) {
+      alert(`Top up error: ${e.message}`);
+    } finally {
+      setIsToppingUp(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'OPEN': return 'bg-slate-800 text-slate-300';
@@ -206,8 +234,20 @@ export default function ClientDashboard() {
               <div className="flex flex-col">
                 <span className="text-xs text-slate-400">Testnet Balance</span>
                 <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
+                {usdToXlmRate && balance && (
+                  <span className="text-xs font-semibold text-green-400">
+                    ≈ ${(parseFloat(balance) / usdToXlmRate).toFixed(2)} USD
+                  </span>
+                )}
               </div>
-              <button onClick={disconnectWallet} className="ml-4 text-xs text-red-400 hover:text-red-300 transition-colors">
+              <button 
+                onClick={handleTopUp} 
+                disabled={isToppingUp}
+                className="ml-2 text-xs text-blue-400 hover:text-blue-300 transition-colors border border-blue-900 px-2 py-1 rounded"
+              >
+                {isToppingUp ? 'Topping up...' : 'Top Up'}
+              </button>
+              <button onClick={disconnectWallet} className="ml-2 text-xs text-red-400 hover:text-red-300 transition-colors">
                 Disconnect
               </button>
             </div>

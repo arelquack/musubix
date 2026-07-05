@@ -52,8 +52,12 @@ export const Web3Provider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setIdrBalance('0');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch balance', error);
+      // If the account doesn't exist on Testnet (e.g., testnet reset or new wallet), 
+      // it throws a 404. We set balances to 0 so the user can Top Up.
+      setBalance('0');
+      setIdrBalance('0');
     }
   };
 
