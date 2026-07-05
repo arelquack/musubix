@@ -74,4 +74,9 @@ export class UserJobServiceController {
   signTransaction(data: { userId: string; xdr: string }) {
     return this.userJobServiceService.signTransaction(data.userId, data.xdr);
   }
+
+  @MessagePattern({ cmd: 'update_profile' })
+  updateProfile(data: { pubKey: string; bio?: string; skills?: string; avatarUrl?: string }) {
+    return this.userJobServiceService.updateProfile(data.pubKey, data);
+  }
 }

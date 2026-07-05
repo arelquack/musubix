@@ -277,7 +277,20 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   async signTransaction(userId: string, xdr: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.stellarSecret) throw new Error('User wallet not found');
+
+    const secretKey = this.walletService.decryptSecret(user.stellarSecret);
     
-    return this.walletService.signTransaction(user.stellarSecret, xdr, 'Test SDF Network ; September 2015');
+    return this.walletService.signTransaction(secretKey, xdr);
+  }
+
+  async updateProfile(pubKey: string, data: { bio?: string, skills?: string, avatarUrl?: string }) {
+    return this.prisma.user.update({
+      where: { stellarPubKey: pubKey },
+      data: {
+        bio: data.bio,
+        skills: data.skills,
+        avatarUrl: data.avatarUrl
+      }
+    });
   }
 }

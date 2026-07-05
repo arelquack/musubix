@@ -45,9 +45,9 @@ export const SiteHeader = () => {
               {isAuthenticating ? 'Signing in...' : 'Sign in'}
             </button>
           ) : (
-            <button className="btn btn-primary btn-small" disabled style={{ opacity: 0.7 }}>
+            <Link href={`/freelancer/profile/${user.stellarPubKey}`} className="btn btn-primary btn-small" title="View & Edit Profile">
               {user.name}
-            </button>
+            </Link>
           )}
         </div>
       </div>

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Horizon } from '@stellar/stellar-sdk';
 import { useParams } from 'next/navigation';
 import { PageWrapper } from '@/components/layout/PageWrapper';
+import { useAuth } from '@/components/AuthProvider';
+import { EditProfileModal } from '@/components/EditProfileModal';
 
 export default function FreelancerProfile() {
   const params = useParams();
@@ -12,9 +14,12 @@ export default function FreelancerProfile() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const { user } = useAuth();
+  
+  const isOwner = user?.stellarPubKey === pubkey;
 
-  useEffect(() => {
-    async function fetchProfileData() {
+  const fetchProfileData = async () => {
       if (!pubkey) return;
       try {
         setLoading(true);
@@ -54,7 +59,9 @@ export default function FreelancerProfile() {
       } finally {
         setLoading(false);
       }
-    }
+  };
+
+  useEffect(() => {
     fetchProfileData();
   }, [pubkey]);
 
@@ -70,7 +77,11 @@ export default function FreelancerProfile() {
           <div className="dash-title-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
               <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--ink-card)', border: '2px solid var(--ink-line)', overflow: 'hidden' }}>
-                <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${pubkey}&backgroundColor=transparent`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {userData?.avatarUrl ? (
+                  <img src={userData.avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${pubkey}&backgroundColor=transparent`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
               </div>
               <div>
                 <h1 style={{ margin: '0 0 8px', fontSize: '32px' }}>{userData?.name || 'Anonymous Freelancer'}</h1>
@@ -81,10 +92,30 @@ export default function FreelancerProfile() {
               </div>
             </div>
             
+            {isOwner && (
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => setShowEditModal(true)}
+                style={{ marginTop: '16px' }}
+              >
+                Edit Profile Details
+              </button>
+            )}
+
             {userData?.bio && (
               <p style={{ fontSize: '16px', color: 'var(--text-2)', maxWidth: '600px', margin: '16px 0 0', lineHeight: 1.6 }}>
                 {userData.bio}
               </p>
+            )}
+
+            {userData?.skills && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '16px' }}>
+                {userData.skills.split(',').map((skill: string, i: number) => (
+                  <span key={i} style={{ padding: '4px 12px', background: 'var(--ink)', border: '1px solid var(--ink-line)', borderRadius: '999px', fontSize: '12px', color: 'var(--text-2)' }}>
+                    {skill.trim()}
+                  </span>
+                ))}
+              </div>
             )}
 
             <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
@@ -167,6 +198,17 @@ export default function FreelancerProfile() {
           </div>
         )}
       </div>
+
+      {showEditModal && userData && (
+        <EditProfileModal 
+          user={userData} 
+          onClose={() => setShowEditModal(false)} 
+          onSuccess={() => {
+            setShowEditModal(false);
+            fetchProfileData();
+          }} 
+        />
+      )}
     </PageWrapper>
   );
 }

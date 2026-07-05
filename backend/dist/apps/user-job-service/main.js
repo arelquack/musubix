@@ -498,6 +498,9 @@ let UserJobServiceController = class UserJobServiceController {
     signTransaction(data) {
         return this.userJobServiceService.signTransaction(data.userId, data.xdr);
     }
+    updateProfile(data) {
+        return this.userJobServiceService.updateProfile(data.pubKey, data);
+    }
 };
 exports.UserJobServiceController = UserJobServiceController;
 __decorate([
@@ -579,6 +582,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "signTransaction", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'update_profile' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "updateProfile", null);
 exports.UserJobServiceController = UserJobServiceController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [typeof (_a = typeof user_job_service_service_1.UserJobServiceService !== "undefined" && user_job_service_service_1.UserJobServiceService) === "function" ? _a : Object])
@@ -895,7 +904,18 @@ let UserJobServiceService = class UserJobServiceService {
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user || !user.stellarSecret)
             throw new Error('User wallet not found');
-        return this.walletService.signTransaction(user.stellarSecret, xdr, 'Test SDF Network ; September 2015');
+        const secretKey = this.walletService.decryptSecret(user.stellarSecret);
+        return this.walletService.signTransaction(secretKey, xdr);
+    }
+    async updateProfile(pubKey, data) {
+        return this.prisma.user.update({
+            where: { stellarPubKey: pubKey },
+            data: {
+                bio: data.bio,
+                skills: data.skills,
+                avatarUrl: data.avatarUrl
+            }
+        });
     }
 };
 exports.UserJobServiceService = UserJobServiceService;
