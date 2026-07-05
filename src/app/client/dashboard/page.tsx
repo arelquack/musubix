@@ -1,8 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { PageWrapper } from '@/components/layout/PageWrapper';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { useWeb3 } from '@/components/Web3Provider';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 import { Contract, nativeToScVal, TransactionBuilder, rpc } from '@stellar/stellar-sdk';
@@ -63,7 +61,14 @@ export default function ClientDashboard() {
       await fetch('http://localhost:4000/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, budgetAmount: xlmAmount, currency: 'XLM', clientPubKey: address }),
+        body: JSON.stringify({ 
+          ...formData, 
+          budgetAmount: xlmAmount, 
+          currency: 'XLM', 
+          clientPubKey: address,
+          aiScore: aiAnalysis?.score,
+          aiFeedback: aiAnalysis?.feedback
+        }),
       });
       setShowForm(false);
       setFormData({ title: '', description: '', budgetAmount: '' });
@@ -247,14 +252,15 @@ export default function ClientDashboard() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusStamp = (status: string) => {
     switch (status) {
-      case 'OPEN': return 'bg-slate-800 text-slate-300';
-      case 'IN_PROGRESS': return 'bg-blue-500/10 text-blue-400';
-      case 'LOCKED': return 'bg-purple-500/10 text-purple-400';
-      case 'IN_REVIEW': return 'bg-amber-500/10 text-amber-400';
-      case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400';
-      default: return 'bg-slate-800 text-slate-300';
+      case 'OPEN': return 'stamp-open';
+      case 'IN_PROGRESS': return 'stamp-submitted';
+      case 'LOCKED': return 'stamp-escrow';
+      case 'IN_REVIEW': return 'stamp-submitted';
+      case 'COMPLETED': return 'stamp-matsu'; // We'll add this class later if needed, or use stamp-open
+      case 'WITHDRAWN': return 'stamp-withdrawn';
+      default: return 'stamp-escrow';
     }
   };
 
@@ -265,215 +271,219 @@ export default function ClientDashboard() {
 
   return (
     <PageWrapper>
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-50">Client Dashboard</h1>
-          <p className="text-slate-400 mt-2">Manage your posted jobs and create new ones.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {!address ? (
-            <Button variant="primary" onClick={connectWallet} disabled={isConnecting}>
-              {isConnecting ? 'Connecting...' : 'Connect Web3 Wallet'}
-            </Button>
-          ) : (
-            <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 py-2 px-4 rounded-lg">
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400">Connected Wallet</span>
-                <span className="text-sm font-medium text-slate-200">{formatAddress(address)}</span>
+      <div className="wrap">
+        <div className="dash-header">
+          <div className="dash-title-row">
+            <div>
+              <h1>Client Dashboard</h1>
+              <p>Manage your posted jobs and create new ones.</p>
+            </div>
+            {!address ? (
+               <button className="btn btn-primary" onClick={connectWallet} disabled={isConnecting}>
+                 {isConnecting ? 'Connecting...' : 'Connect wallet'}
+               </button>
+            ) : (
+               <button className="btn btn-ghost" onClick={() => {
+                 setShowForm(!showForm);
+                 setAiAnalysis(null);
+               }}>
+                 {showForm ? 'Cancel Posting' : 'Post New Job'}
+               </button>
+            )}
+          </div>
+
+          {address && (
+            <div className="wallet-bar">
+              <div className="wallet-field">
+                <span className="label">Wallet Address</span>
+                <span className="value address" onClick={() => navigator.clipboard.writeText(address)} title="Click to copy">{formatAddress(address)}</span>
               </div>
-              <div className="h-8 w-px bg-slate-800 mx-2"></div>
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400">Testnet Balance</span>
-                <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
+              <div className="wallet-divider"></div>
+              <div className="wallet-field">
+                <span className="label">Testnet Balance</span>
+                <span className="value">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
                 {usdToXlmRate && balance && (
-                  <span className="text-xs font-semibold text-green-400">
-                    ≈ ${(parseFloat(balance) / usdToXlmRate).toFixed(2)} USD
-                  </span>
+                  <span className="sub">≈ ${(parseFloat(balance) / usdToXlmRate).toFixed(2)} USD</span>
                 )}
               </div>
-              <button 
-                onClick={handleTopUp} 
-                disabled={isToppingUp}
-                className="ml-2 text-xs text-blue-400 hover:text-blue-300 transition-colors border border-blue-900 px-2 py-1 rounded"
-              >
-                {isToppingUp ? 'Topping up...' : 'Top Up'}
-              </button>
-              <button onClick={disconnectWallet} className="ml-2 text-xs text-red-400 hover:text-red-300 transition-colors">
-                Disconnect
-              </button>
+              <div className="wallet-actions">
+                <button className="btn btn-ghost btn-small" onClick={handleTopUp} disabled={isToppingUp}>
+                  {isToppingUp ? 'Topping up...' : 'Top up 10k XLM'}
+                </button>
+                <button className="btn-danger-text" onClick={disconnectWallet}>Disconnect</button>
+              </div>
             </div>
           )}
-          <Button variant="outline" onClick={() => {
-            setShowForm(!showForm);
-            setAiAnalysis(null);
-          }}>
-            {showForm ? 'Cancel Posting' : 'Post New Job'}
-          </Button>
         </div>
-      </div>
 
-      {showForm && (
-        <Card className="mb-8 border border-slate-800 bg-slate-900/50">
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Job Title</label>
-              <input required type="text" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.title} onChange={(e) => {setFormData({...formData, title: e.target.value}); setAiAnalysis(null);}} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
-              <textarea required className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" rows={3} value={formData.description} onChange={(e) => {setFormData({...formData, description: e.target.value}); setAiAnalysis(null);}}></textarea>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Budget (USD)</label>
-              <input required type="number" className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2" value={formData.budgetAmount} onChange={(e) => {setFormData({...formData, budgetAmount: e.target.value}); setAiAnalysis(null);}} />
-              {usdToXlmRate && formData.budgetAmount && (
-                <p className="text-xs text-blue-400 mt-1">
-                  ≈ {(parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)} XLM
-                </p>
-              )}
-            </div>
-            
-            {aiAnalysis && (
-              <div className={`p-4 rounded-lg border ${aiAnalysis.score >= 70 ? 'bg-green-950/30 border-green-900' : 'bg-yellow-950/30 border-yellow-900'}`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`text-2xl font-bold ${aiAnalysis.score >= 70 ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {aiAnalysis.score}/100
-                  </div>
-                  <div className="text-sm font-medium text-slate-300">AI Quality Score</div>
-                </div>
-                <p className="text-sm text-slate-400">{aiAnalysis.feedback}</p>
+        {showForm && (
+          <div style={{ background: 'var(--ink-card)', padding: '32px', borderRadius: 'var(--radius-m)', border: '1px solid var(--ink-line)', marginBottom: '40px' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '20px', margin: '0 0 24px', fontWeight: 500 }}>Post a New Job</h3>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-2)', marginBottom: '8px', fontWeight: 600 }}>Job Title</label>
+                <input required type="text" style={{ width: '100%', background: 'var(--ink)', border: '1px solid var(--ink-line)', color: 'var(--text-1)', borderRadius: 'var(--radius-s)', padding: '12px 16px', fontFamily: 'var(--font-body)', fontSize: '15px' }} value={formData.title} onChange={(e) => {setFormData({...formData, title: e.target.value}); setAiAnalysis(null);}} />
               </div>
-            )}
-
-            <div className="flex gap-4">
-              <Button type="button" variant="outline" onClick={handleAnalyze} disabled={isAnalyzing}>
-                {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}
-              </Button>
-              {aiAnalysis && (
-                <Button type="submit" variant="success">
-                  Confirm & Post Job
-                </Button>
-              )}
-            </div>
-          </form>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {!Array.isArray(jobs) ? (
-          <p className="text-red-500">Error loading jobs from server. Is the backend running?</p>
-        ) : jobs.length === 0 ? (
-          <p className="text-slate-500">No jobs posted yet.</p>
-        ) : (
-          jobs.map((job: any) => (
-            <Card key={job.id}>
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="font-semibold text-lg text-slate-50">{job.title}</h3>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadge(job.status)}`}>{job.status}</span>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-2)', marginBottom: '8px', fontWeight: 600 }}>Description</label>
+                <textarea required style={{ width: '100%', background: 'var(--ink)', border: '1px solid var(--ink-line)', color: 'var(--text-1)', borderRadius: 'var(--radius-s)', padding: '12px 16px', fontFamily: 'var(--font-body)', fontSize: '15px' }} rows={3} value={formData.description} onChange={(e) => {setFormData({...formData, description: e.target.value}); setAiAnalysis(null);}}></textarea>
               </div>
-              <p className="text-sm text-slate-400 mb-4 line-clamp-2">{job.description}</p>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-2)', marginBottom: '8px', fontWeight: 600 }}>Budget (USD)</label>
+                <input required type="number" style={{ width: '100%', background: 'var(--ink)', border: '1px solid var(--ink-line)', color: 'var(--text-1)', borderRadius: 'var(--radius-s)', padding: '12px 16px', fontFamily: 'var(--font-body)', fontSize: '15px' }} value={formData.budgetAmount} onChange={(e) => {setFormData({...formData, budgetAmount: e.target.value}); setAiAnalysis(null);}} />
+                {usdToXlmRate && formData.budgetAmount && (
+                  <p style={{ fontSize: '12px', color: 'var(--kin)', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
+                    ≈ {(parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)} XLM
+                  </p>
+                )}
+              </div>
               
-              {job.status === 'IN_REVIEW' && job.workSubmission && (
-                <div className="mb-4 p-3 bg-slate-950 rounded border border-slate-800">
-                  <span className="text-xs font-semibold text-slate-500 uppercase">Freelancer Submission:</span>
-                  <p className="text-sm text-slate-300 mt-1 break-all">{job.workSubmission}</p>
+              {aiAnalysis && (
+                <div style={{ padding: '16px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: aiAnalysis.score >= 70 ? 'rgba(92,138,110,0.1)' : 'rgba(200,73,60,0.08)', borderColor: aiAnalysis.score >= 70 ? 'var(--matsu)' : 'var(--shu)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', fontFamily: 'var(--font-mono)', color: aiAnalysis.score >= 70 ? 'var(--matsu)' : 'var(--shu)' }}>
+                      {aiAnalysis.score}/100
+                    </div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-2)' }}>AI Quality Score</div>
+                  </div>
+                  <p style={{ fontSize: '14px', color: 'var(--text-1)', margin: 0 }}>{aiAnalysis.feedback}</p>
                 </div>
               )}
 
-              {job.freelancer?.stellarPubKey && (job.status === 'IN_PROGRESS' || job.status === 'IN_REVIEW' || job.status === 'COMPLETED' || job.status === 'WITHDRAWN') && (
-                <div className="mb-4">
-                  <Link href={`/freelancer/profile/${job.freelancer.stellarPubKey}`} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
-                    <span>View Freelancer Profile</span>
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </Link>
-                </div>
-              )}
-
-              <div className="flex justify-between items-center mt-auto">
-                <span className="font-medium text-slate-200">{job.budgetAmount} {job.currency}</span>
-                
-                {job.status === 'OPEN' && (
-                  <span className="text-xs text-slate-500">Waiting for freelancer...</span>
-                )}
-                {job.status === 'IN_PROGRESS' && (
-                  <Button variant="primary" size="sm" onClick={() => handleAction(job.id, 'lock', job.escrowId)}>Lock Escrow</Button>
-                )}
-                {job.status === 'LOCKED' && (
-                  <span className="text-xs text-purple-400 font-medium">Funds Locked 🔒</span>
-                )}
-                {job.status === 'IN_REVIEW' && (
-                  <Button 
-                    variant="success" 
-                    size="sm" 
-                    onClick={() => setRatingModal({ jobId: job.id, escrowId: job.escrowId })}
-                    disabled={processingJob === job.id}
-                  >
-                    {processingJob === job.id ? (
-                      <span className="flex items-center gap-2">
-                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing Web3 Payment...
-                      </span>
-                    ) : (
-                      'Approve & Pay'
-                    )}
-                  </Button>
-                )}
-                {job.status === 'COMPLETED' && (
-                  <span className="text-xs text-emerald-400 font-bold">PAID ✓</span>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                <button type="button" className="btn btn-ghost" onClick={handleAnalyze} disabled={isAnalyzing}>
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze with AI'}
+                </button>
+                {aiAnalysis && (
+                  <button type="submit" className="btn btn-primary" style={{ background: 'var(--matsu)' }}>
+                    Confirm & Post Job
+                  </button>
                 )}
               </div>
-            </Card>
-          ))
+            </form>
+          </div>
+        )}
+
+        <div className="job-grid">
+          {!Array.isArray(jobs) ? (
+            <div className="empty-state">
+              <h3>Connection Error</h3>
+              <p>Error loading jobs from server. Is the backend running?</p>
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="empty-state">
+              <h3>No jobs posted yet</h3>
+              <p>When you post a job, it will appear here.</p>
+            </div>
+          ) : (
+            jobs.map((job: any) => (
+              <div className="job-card" key={job.id}>
+                <div className="job-card-top">
+                  <h3>{job.title}</h3>
+                  <span className={`stamp ${getStatusStamp(job.status)}`}>{job.status}</span>
+                </div>
+                <p className="desc">{job.description}</p>
+                
+                {job.status === 'IN_REVIEW' && job.workSubmission && (
+                  <div style={{ padding: '12px', background: 'var(--ink)', borderRadius: 'var(--radius-s)', border: '1px solid var(--ink-line)', marginTop: '8px' }}>
+                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Submission:</span>
+                    <p style={{ fontSize: '13.5px', color: 'var(--text-1)', margin: 0, wordBreak: 'break-all' }}>{job.workSubmission}</p>
+                  </div>
+                )}
+
+                {job.freelancer?.stellarPubKey && (job.status === 'IN_PROGRESS' || job.status === 'IN_REVIEW' || job.status === 'COMPLETED' || job.status === 'WITHDRAWN') && (
+                  <div>
+                    <Link href={`/freelancer/profile/${job.freelancer.stellarPubKey}`} className="profile-link">
+                      View Freelancer Profile
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </Link>
+                  </div>
+                )}
+
+                <div className="amount-row" style={{ flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span className="amount">{job.budgetAmount}</span>
+                    <span className="amount-currency">{job.currency}</span>
+                  </div>
+                  
+                  <div style={{ display: 'flex', width: '100%' }}>
+                    {job.status === 'OPEN' && (
+                      <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>Waiting for freelancer...</span>
+                    )}
+                    {job.status === 'IN_PROGRESS' && (
+                      <button className="btn btn-primary btn-small" style={{ width: '100%', justifyContent: 'center' }} onClick={() => handleAction(job.id, 'lock', job.escrowId)}>
+                        Lock Escrow
+                      </button>
+                    )}
+                    {job.status === 'LOCKED' && (
+                      <span style={{ fontSize: '13px', color: 'var(--ai)', fontWeight: 600 }}>Funds Locked 🔒</span>
+                    )}
+                    {job.status === 'IN_REVIEW' && (
+                      <button 
+                        className="btn btn-primary btn-small" 
+                        style={{ width: '100%', justifyContent: 'center', background: 'var(--matsu)' }}
+                        onClick={() => setRatingModal({ jobId: job.id, escrowId: job.escrowId })}
+                        disabled={processingJob === job.id}
+                      >
+                        {processingJob === job.id ? 'Processing...' : 'Approve & Pay'}
+                      </button>
+                    )}
+                    {job.status === 'COMPLETED' && (
+                      <span style={{ fontSize: '13px', color: 'var(--matsu)', fontWeight: 'bold' }}>PAID ✓</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {ratingModal && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }}>
+            <div style={{ background: 'var(--ink-card)', padding: '32px', borderRadius: 'var(--radius-m)', border: '1px solid var(--ink-line)', width: '100%', maxWidth: '440px' }}>
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: '0 0 24px', fontWeight: 500 }}>Rate Freelancer</h3>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-2)', marginBottom: '12px', fontWeight: 600 }}>Star Rating</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button 
+                      key={star}
+                      type="button"
+                      onClick={() => setRatingData({ ...ratingData, rating: star })}
+                      style={{ background: 'none', border: 'none', fontSize: '28px', cursor: 'pointer', color: ratingData.rating >= star ? 'var(--kin)' : 'var(--ink-line)' }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: '32px' }}>
+                <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-2)', marginBottom: '8px', fontWeight: 600 }}>Review (Optional)</label>
+                <textarea 
+                  style={{ width: '100%', background: 'var(--ink)', border: '1px solid var(--ink-line)', color: 'var(--text-1)', borderRadius: 'var(--radius-s)', padding: '12px 16px', fontFamily: 'var(--font-body)', fontSize: '15px' }}
+                  rows={3} 
+                  placeholder="How was working with this freelancer?"
+                  value={ratingData.review} 
+                  onChange={(e) => setRatingData({...ratingData, review: e.target.value})}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                <button className="btn btn-ghost" onClick={() => setRatingModal(null)}>Cancel</button>
+                <button 
+                  className="btn btn-primary"
+                  style={{ background: 'var(--matsu)' }}
+                  disabled={processingJob === ratingModal.jobId}
+                  onClick={() => handleAction(ratingModal.jobId, 'approve', ratingModal.escrowId)}
+                >
+                  {processingJob === ratingModal.jobId ? 'Processing...' : 'Submit & Pay'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
-
-      {ratingModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md bg-slate-900 border-slate-800">
-            <h3 className="text-xl font-bold text-white mb-4">Rate Freelancer</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Star Rating</label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button 
-                    key={star}
-                    type="button"
-                    onClick={() => setRatingData({ ...ratingData, rating: star })}
-                    className={`text-2xl ${ratingData.rating >= star ? 'text-yellow-400' : 'text-slate-600'}`}
-                  >
-                    ★
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-300 mb-2">Review (Optional)</label>
-              <textarea 
-                className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 rounded-lg p-2" 
-                rows={3} 
-                placeholder="How was working with this freelancer?"
-                value={ratingData.review} 
-                onChange={(e) => setRatingData({...ratingData, review: e.target.value})}
-              />
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setRatingModal(null)}>Cancel</Button>
-              <Button 
-                variant="success" 
-                disabled={processingJob === ratingModal.jobId}
-                onClick={() => handleAction(ratingModal.jobId, 'approve', ratingModal.escrowId)}
-              >
-                {processingJob === ratingModal.jobId ? 'Processing...' : 'Submit & Pay'}
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
     </PageWrapper>
   );
 }

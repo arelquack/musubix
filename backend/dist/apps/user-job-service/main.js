@@ -269,6 +269,8 @@ let UserJobServiceService = class UserJobServiceService {
                 currency: data.currency || 'USDC',
                 status: 'OPEN',
                 clientId: client.id,
+                aiScore: data.aiScore ? parseInt(data.aiScore) : null,
+                aiFeedback: data.aiFeedback || null,
             },
         });
     }

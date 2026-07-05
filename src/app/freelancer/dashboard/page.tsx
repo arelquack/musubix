@@ -1,9 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { PageWrapper } from '@/components/layout/PageWrapper';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-
 import { useWeb3 } from '@/components/Web3Provider';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 import { TransactionBuilder, Operation, Asset, Memo } from '@stellar/stellar-sdk';
@@ -13,6 +10,7 @@ export default function FreelancerDashboard() {
   const { address, balance, idrBalance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
   const [jobs, setJobs] = useState<any[]>([]);
   const [submissionData, setSubmissionData] = useState<{ [key: string]: string }>({});
+  const [activeFilter, setActiveFilter] = useState('all');
 
   const [treasuryPubKey, setTreasuryPubKey] = useState<string | null>(null);
   const [processingJob, setProcessingJob] = useState<string | null>(null);
@@ -36,7 +34,6 @@ export default function FreelancerDashboard() {
 
   const fetchJobs = async () => {
     try {
-      // For MVP, we fetch OPEN jobs, and jobs assigned to this freelancer
       const resOpen = await fetch('http://localhost:4000/jobs?status=OPEN');
       const openJobs = await resOpen.json();
 
@@ -47,12 +44,11 @@ export default function FreelancerDashboard() {
       }
       
       if (Array.isArray(openJobs) && Array.isArray(myJobs)) {
-        // Deduplicate in case a job is somehow both (shouldn't happen)
         const all = [...myJobs, ...openJobs];
         const unique = Array.from(new Map(all.map(item => [item.id, item])).values());
         setJobs(unique);
       } else {
-        setJobs({ error: true } as any); // trigger the !Array.isArray check
+        setJobs({ error: true } as any);
       }
     } catch (e) {
       console.error('Failed to fetch jobs', e);
@@ -127,7 +123,7 @@ export default function FreelancerDashboard() {
 
       const tx = new TransactionBuilder(sourceAccount, { fee: '1000', networkPassphrase: TESTNET_NETWORK_PASSPHRASE })
         .addOperation(Operation.payment({
-          destination: treasuryPubKey, // Sending it back to the platform treasury
+          destination: treasuryPubKey,
           asset: idrAsset,
           amount: idrBalance,
         }))
@@ -177,15 +173,15 @@ export default function FreelancerDashboard() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusStamp = (status: string) => {
     switch (status) {
-      case 'OPEN': return 'bg-slate-800 text-slate-300';
-      case 'IN_PROGRESS': return 'bg-blue-500/10 text-blue-400';
-      case 'LOCKED': return 'bg-purple-500/10 text-purple-400';
-      case 'IN_REVIEW': return 'bg-amber-500/10 text-amber-400';
-      case 'COMPLETED': return 'bg-emerald-500/10 text-emerald-400';
-      case 'WITHDRAWN': return 'bg-indigo-500/10 text-indigo-400';
-      default: return 'bg-slate-800 text-slate-300';
+      case 'OPEN': return 'stamp-open';
+      case 'IN_PROGRESS': return 'stamp-submitted';
+      case 'LOCKED': return 'stamp-escrow';
+      case 'IN_REVIEW': return 'stamp-submitted';
+      case 'COMPLETED': return 'stamp-matsu'; // handled inline
+      case 'WITHDRAWN': return 'stamp-withdrawn';
+      default: return 'stamp-escrow';
     }
   };
 
@@ -194,115 +190,154 @@ export default function FreelancerDashboard() {
     return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
   };
 
+  const filteredJobs = Array.isArray(jobs) ? jobs.filter(job => activeFilter === 'all' || job.status === activeFilter) : [];
+
   return (
     <PageWrapper>
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-50">Freelancer Dashboard</h1>
-          <p className="text-slate-400 mt-2">Find available jobs and track your active projects.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {!address ? (
-            <Button variant="primary" onClick={connectWallet} disabled={isConnecting}>
-              {isConnecting ? 'Connecting...' : 'Connect Web3 Wallet'}
-            </Button>
-          ) : (
-            <div className="flex items-center gap-4 bg-slate-900 border border-slate-800 py-2 px-4 rounded-lg">
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400">Connected Wallet</span>
-                <span className="text-sm font-medium text-slate-200">{formatAddress(address)}</span>
+      <div className="wrap">
+        <div className="dash-header">
+          <div className="dash-title-row">
+            <div>
+              <h1>Freelancer Dashboard</h1>
+              <p>Find available jobs and track your active projects.</p>
+            </div>
+            {!address && (
+               <button className="btn btn-primary" onClick={connectWallet} disabled={isConnecting}>
+                 {isConnecting ? 'Connecting...' : 'Connect wallet'}
+               </button>
+            )}
+          </div>
+
+          {address && (
+            <div className="wallet-bar">
+              <div className="wallet-field">
+                <span className="label">Wallet Address</span>
+                <span className="value address" onClick={() => navigator.clipboard.writeText(address)} title="Click to copy">{formatAddress(address)}</span>
               </div>
-              <div className="h-8 w-px bg-slate-800 mx-2"></div>
-              <div className="flex flex-col">
-                <span className="text-xs text-slate-400">Balances</span>
-                <span className="text-sm font-bold text-blue-400">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
-                <span className="text-sm font-bold text-green-400">{idrBalance ? parseFloat(idrBalance).toFixed(2) : '0'} IDR</span>
+              <div className="wallet-divider"></div>
+              <div className="wallet-field">
+                <span className="label">Balance</span>
+                <span className="value">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
               </div>
-              <button 
-                onClick={handleTransferToBank} 
-                disabled={isTransferringToBank}
-                className="ml-2 text-xs text-green-400 hover:text-green-300 transition-colors border border-green-900 px-2 py-1 rounded"
-              >
-                {isTransferringToBank ? 'Transferring...' : 'Transfer to Bank'}
-              </button>
-              <button onClick={disconnectWallet} className="ml-2 text-xs text-red-400 hover:text-red-300 transition-colors">
-                Disconnect
-              </button>
+              <div className="wallet-field">
+                <span className="label">Fiat Balance</span>
+                <span className="value" style={{ color: 'var(--matsu)' }}>{idrBalance ? parseFloat(idrBalance).toFixed(2) : '0'} IDR</span>
+              </div>
+              <div className="wallet-actions">
+                <button className="btn btn-ghost btn-small" onClick={handleTransferToBank} disabled={isTransferringToBank}>
+                  {isTransferringToBank ? 'Transferring...' : 'Transfer to Bank'}
+                </button>
+                <button className="btn-danger-text" onClick={disconnectWallet}>Disconnect</button>
+              </div>
             </div>
           )}
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {!Array.isArray(jobs) ? (
-          <p className="text-red-500">Error loading jobs from server. Is the backend running?</p>
-        ) : jobs.length === 0 ? (
-          <p className="text-slate-500">No open jobs available at the moment.</p>
-        ) : (
-          jobs.map((job: any) => (
-            <Card key={job.id}>
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="font-semibold text-lg text-slate-50">{job.title}</h3>
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusBadge(job.status)}`}>{job.status}</span>
-              </div>
-              <p className="text-sm text-slate-400 mb-4 line-clamp-2">{job.description}</p>
-              
-              {job.status === 'LOCKED' && (
-                <div className="mb-4">
-                  <input
-                    type="text"
-                    placeholder="Enter Github URL or text..."
-                    className="w-full bg-slate-950 border border-slate-800 text-slate-50 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg p-2 text-sm mb-2"
-                    value={submissionData[job.id] || ''}
-                    onChange={(e) => setSubmissionData({ ...submissionData, [job.id]: e.target.value })}
-                  />
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => handleAction(job.id, 'submit', { workSubmission: submissionData[job.id] })}
-                  >
-                    Submit Work
-                  </Button>
+        <div className="job-toolbar">
+          <button className={`chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All Jobs</button>
+          <button className={`chip ${activeFilter === 'OPEN' ? 'active' : ''}`} onClick={() => setActiveFilter('OPEN')}>Open</button>
+          <button className={`chip ${activeFilter === 'IN_PROGRESS' || activeFilter === 'LOCKED' ? 'active' : ''}`} onClick={() => setActiveFilter('IN_PROGRESS')}>Active</button>
+          <button className={`chip ${activeFilter === 'COMPLETED' || activeFilter === 'WITHDRAWN' ? 'active' : ''}`} onClick={() => setActiveFilter('COMPLETED')}>Completed</button>
+        </div>
+
+        <div className="job-grid">
+          {!Array.isArray(jobs) ? (
+            <div className="empty-state">
+              <h3>Connection Error</h3>
+              <p>Error loading jobs from server. Is the backend running?</p>
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="empty-state">
+              <h3>No jobs found</h3>
+              <p>No jobs match this filter currently.</p>
+            </div>
+          ) : (
+            filteredJobs.map((job: any) => (
+              <div className="job-card" key={job.id}>
+                <div className="job-card-top">
+                  <h3>{job.title}</h3>
+                  <span className={`stamp ${getStatusStamp(job.status)}`}>{job.status}</span>
                 </div>
-              )}
+                <p className="desc">{job.description}</p>
+                
+                {job.aiScore !== null && job.aiScore !== undefined && (
+                  <div style={{ padding: '12px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: job.aiScore >= 70 ? 'rgba(92,138,110,0.1)' : 'rgba(200,73,60,0.08)', borderColor: job.aiScore >= 70 ? 'var(--matsu)' : 'var(--shu)', marginTop: '4px' }}>
+                    {job.aiScore >= 70 ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--matsu)' }}>
+                        AI Score: {job.aiScore}/100 - Good Job Specs
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', color: 'var(--shu)', marginBottom: '4px' }}>
+                          ⚠️ AI Warning (Score: {job.aiScore}/100)
+                        </div>
+                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-1)' }}>{job.aiFeedback}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              <div className="flex flex-col mt-auto">
-                <span className="font-medium text-slate-200">{job.budgetAmount} {job.currency}</span>
-                {xlmToIdrRate && job.currency === 'XLM' && (
-                  <span className="text-xs text-green-400 font-semibold mt-1">
-                    ≈ {(parseFloat(job.budgetAmount) * xlmToIdrRate).toLocaleString('id-ID')} IDR
-                  </span>
+                {job.status === 'LOCKED' && (
+                  <div style={{ marginTop: '12px' }}>
+                    <input
+                      type="text"
+                      placeholder="Enter Github URL or text..."
+                      style={{ width: '100%', background: 'var(--ink)', border: '1px solid var(--ink-line)', color: 'var(--text-1)', borderRadius: 'var(--radius-s)', padding: '12px 16px', fontFamily: 'var(--font-body)', fontSize: '14px', marginBottom: '8px' }}
+                      value={submissionData[job.id] || ''}
+                      onChange={(e) => setSubmissionData({ ...submissionData, [job.id]: e.target.value })}
+                    />
+                    <button
+                      className="btn btn-primary btn-small"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                      onClick={() => handleAction(job.id, 'submit', { workSubmission: submissionData[job.id] })}
+                    >
+                      Submit Work
+                    </button>
+                  </div>
                 )}
+
+                <div className="amount-row" style={{ flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                      <span className="amount">{job.budgetAmount}</span>
+                      <span className="amount-currency">{job.currency}</span>
+                    </div>
+                    {xlmToIdrRate && job.currency === 'XLM' && (
+                      <span style={{ display: 'block', fontSize: '12px', color: 'var(--matsu)', fontWeight: 600, marginTop: '2px' }}>
+                        ≈ {(parseFloat(job.budgetAmount) * xlmToIdrRate).toLocaleString('id-ID')} IDR
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', width: '100%', justifyContent: 'flex-end' }}>
+                    {job.status === 'OPEN' && (
+                      <button className="btn btn-ghost btn-small" onClick={() => handleAction(job.id, 'accept')}>Accept Job</button>
+                    )}
+                    {job.status === 'IN_PROGRESS' && (
+                      <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>Waiting for Client Escrow...</span>
+                    )}
+                    {job.status === 'IN_REVIEW' && (
+                      <span style={{ fontSize: '12px', color: 'var(--text-1)', fontWeight: 600 }}>Pending Client Approval</span>
+                    )}
+                    {job.status === 'COMPLETED' && (
+                      <button 
+                        className="btn btn-primary btn-small" 
+                        style={{ background: 'var(--matsu)' }}
+                        onClick={() => handleWithdraw(job.id, job.budgetAmount.toString())}
+                        disabled={processingJob === job.id}
+                      >
+                        {processingJob === job.id ? 'Processing Swap...' : 'Withdraw to IDR (Bank)'}
+                      </button>
+                    )}
+                    {job.status === 'WITHDRAWN' && (
+                      <span style={{ fontSize: '12px', color: 'var(--ai)', fontWeight: 'bold' }}>FUNDS WITHDRAWN ✓</span>
+                    )}
+                  </div>
+                </div>
               </div>
-              
-              <div className="flex justify-end items-center mt-4">
-                {job.status === 'OPEN' && (
-                  <Button variant="outline" size="sm" onClick={() => handleAction(job.id, 'accept')}>Accept Job</Button>
-                )}
-                {job.status === 'IN_PROGRESS' && (
-                  <span className="text-xs text-slate-500">Waiting for Client Escrow...</span>
-                )}
-                {job.status === 'IN_REVIEW' && (
-                  <span className="text-xs text-slate-300 font-medium">Pending Client Approval</span>
-                )}
-                {job.status === 'COMPLETED' && (
-                  <Button 
-                    variant="success" 
-                    size="sm" 
-                    onClick={() => handleWithdraw(job.id, job.budgetAmount.toString())}
-                    disabled={processingJob === job.id}
-                  >
-                    {processingJob === job.id ? 'Processing Swap...' : 'Withdraw to IDR (Bank)'}
-                  </Button>
-                )}
-                {job.status === 'WITHDRAWN' && (
-                  <span className="text-xs text-blue-400 font-bold">FUNDS WITHDRAWN ✓</span>
-                )}
-              </div>
-            </Card>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
     </PageWrapper>
   );

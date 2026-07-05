@@ -48,6 +48,8 @@ model Job {
   workSubmission String? // Freelancer's submitted work (e.g., URL or text)
   clientRating  Int?     // 1 to 5 stars
   clientReview  String?
+  aiScore       Int?     // AI Smart Checker Score (0-100)
+  aiFeedback    String?  // AI Smart Checker Feedback/Warning
   client        User     @relation("ClientJobs", fields: [clientId], references: [id])
   freelancer    User?    @relation("FreelancerJobs", fields: [freelancerId], references: [id])
 }

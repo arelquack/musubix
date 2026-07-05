@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Shippori_Mincho, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Web3Provider } from '@/components/Web3Provider';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const shippori = Shippori_Mincho({ weight: ['500', '600'], subsets: ['latin'], variable: '--font-shippori' });
+const jetbrains = JetBrains_Mono({ weight: ['500', '600', '700'], subsets: ['latin'], variable: '--font-jetbrains' });
 
 export const metadata: Metadata = {
-  title: 'MusubiX | Decentralized Escrow',
+  title: 'Musubix — Borderless micro-freelance, tied by Stellar',
   description: 'Secure, cross-border Web3 freelance marketplace',
 };
 
@@ -16,8 +18,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-screen bg-slate-950 text-slate-50 antialiased selection:bg-blue-500/30 selection:text-blue-200`}>
+    <html lang="en" className={`${inter.variable} ${shippori.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+      <body>
         <Web3Provider>
           {children}
         </Web3Provider>
