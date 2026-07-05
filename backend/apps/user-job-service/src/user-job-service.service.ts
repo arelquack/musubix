@@ -1,15 +1,18 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { StellarServiceService } from '../../stellar-service/src/stellar-service.service';
+import { WalletService } from '../../stellar-service/src/wallet.service';
 
 @Injectable()
 export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   private prisma: PrismaClient;
   private stellarService: StellarServiceService;
+  private walletService: WalletService;
 
   constructor() {
     this.prisma = new PrismaClient();
     this.stellarService = new StellarServiceService();
+    this.walletService = new WalletService();
   }
 
   async onModuleInit() {
@@ -27,16 +30,17 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     if (!mockClient || !mockClient.stellarSecret) {
       console.log('Generating persistent wallet for Mock Client...');
       const wallet = await this.stellarService.generateAndFundWallet();
+      const encryptedSecret = this.walletService.encryptSecret(wallet.secretKey);
       mockClient = await this.prisma.user.upsert({
         where: { email: 'client@musubix.com' },
-        update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+        update: { stellarPubKey: wallet.publicKey, stellarSecret: encryptedSecret },
         create: {
           id: 'mock-client-id',
           email: 'client@musubix.com',
           name: 'Mock Client',
           role: 'CLIENT',
           stellarPubKey: wallet.publicKey,
-          stellarSecret: wallet.secretKey,
+          stellarSecret: encryptedSecret,
         },
       });
     }
@@ -45,16 +49,28 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     if (!mockFreelancer || !mockFreelancer.stellarSecret) {
       console.log('Generating persistent wallet for Mock Freelancer...');
       const wallet = await this.stellarService.generateAndFundWallet();
+      const encryptedSecret = this.walletService.encryptSecret(wallet.secretKey);
       mockFreelancer = await this.prisma.user.upsert({
         where: { email: 'freelancer@musubix.com' },
-        update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+        update: { 
+          stellarPubKey: wallet.publicKey, 
+          stellarSecret: encryptedSecret,
+          bio: 'Fullstack Web3 Developer with 5+ years of experience building dApps on Stellar and Soroban. I specialize in NestJS and Next.js.',
+          portfolioUrl: 'https://musubix.com/portfolio',
+          githubUrl: 'https://github.com/musubix-dev',
+          calendlyUrl: 'https://calendly.com/musubix-demo'
+        },
         create: {
           id: 'mock-freelancer-id',
           email: 'freelancer@musubix.com',
-          name: 'Mock Freelancer',
+          name: 'Satoshi Nakamoto',
           role: 'FREELANCER',
           stellarPubKey: wallet.publicKey,
-          stellarSecret: wallet.secretKey,
+          stellarSecret: encryptedSecret,
+          bio: 'Fullstack Web3 Developer with 5+ years of experience building dApps on Stellar and Soroban. I specialize in NestJS and Next.js.',
+          portfolioUrl: 'https://musubix.com/portfolio',
+          githubUrl: 'https://github.com/musubix-dev',
+          calendlyUrl: 'https://calendly.com/musubix-demo'
         },
       });
     }
@@ -63,17 +79,8 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
   async createJob(data: any) {
     if (!data.clientPubKey) throw new Error('clientPubKey is required');
 
-    // Dynamically upsert the client user based on their wallet public key
-    const client = await this.prisma.user.upsert({
-      where: { stellarPubKey: data.clientPubKey },
-      update: {},
-      create: {
-        email: `${data.clientPubKey}@musubix.local`, // Auto-generated dummy email
-        name: `Client ${data.clientPubKey.slice(0, 5)}`,
-        role: 'CLIENT',
-        stellarPubKey: data.clientPubKey,
-      },
-    });
+    const client = await this.prisma.user.findUnique({ where: { stellarPubKey: data.clientPubKey } });
+    if (!client) throw new Error('Client not found');
 
     return this.prisma.job.create({
       data: {
@@ -117,17 +124,8 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });
     if (!job || job.status !== 'OPEN') throw new Error('Job is not available');
 
-    // Dynamically upsert the freelancer user based on their wallet public key
-    const freelancer = await this.prisma.user.upsert({
-      where: { stellarPubKey: freelancerPubKey },
-      update: {},
-      create: {
-        email: `${freelancerPubKey}@musubix.local`, // Auto-generated dummy email
-        name: `Freelancer ${freelancerPubKey.slice(0, 5)}`,
-        role: 'FREELANCER',
-        stellarPubKey: freelancerPubKey,
-      },
-    });
+    const freelancer = await this.prisma.user.findUnique({ where: { stellarPubKey: freelancerPubKey } });
+    if (!freelancer) throw new Error('Freelancer not found');
 
     return this.prisma.job.update({
       where: { id: jobId },
@@ -254,5 +252,32 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
       totalJobsCompleted: aggregate._count.id || 0,
       totalFundsDistributed: aggregate._sum.budgetAmount || 0,
     };
+  }
+
+  async authLogin(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user) return user;
+    
+    // Auto-register mock flow
+    const wallet = await this.stellarService.generateAndFundWallet();
+    const encryptedSecret = this.walletService.encryptSecret(wallet.secretKey);
+    const role = email.toLowerCase().includes('client') ? 'CLIENT' : 'FREELANCER';
+    
+    return this.prisma.user.create({
+      data: {
+        email,
+        name: email.split('@')[0],
+        role: role as any,
+        stellarPubKey: wallet.publicKey,
+        stellarSecret: encryptedSecret,
+      }
+    });
+  }
+
+  async signTransaction(userId: string, xdr: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || !user.stellarSecret) throw new Error('User wallet not found');
+    
+    return this.walletService.signTransaction(user.stellarSecret, xdr, 'Test SDF Network ; September 2015');
   }
 }

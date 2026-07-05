@@ -319,6 +319,112 @@ exports.StellarServiceService = StellarServiceService = StellarServiceService_1 
 
 /***/ },
 
+/***/ "./apps/stellar-service/src/wallet.service.ts"
+/*!****************************************************!*\
+  !*** ./apps/stellar-service/src/wallet.service.ts ***!
+  \****************************************************/
+(__unused_webpack_module, exports, __webpack_require__) {
+
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.WalletService = void 0;
+const common_1 = __webpack_require__(/*! @nestjs/common */ "@nestjs/common");
+const crypto = __importStar(__webpack_require__(/*! crypto */ "crypto"));
+const stellar_sdk_1 = __webpack_require__(/*! @stellar/stellar-sdk */ "@stellar/stellar-sdk");
+let WalletService = class WalletService {
+    algorithm = 'aes-256-cbc';
+    key;
+    constructor() {
+        const secretStr = process.env.ENCRYPTION_KEY || 'default_secret_key_for_mvp_must_be_32_bytes_long';
+        if (secretStr.length === 32) {
+            this.key = Buffer.from(secretStr, 'utf8');
+        }
+        else {
+            this.key = crypto.createHash('sha256').update(String(secretStr)).digest();
+        }
+    }
+    encryptSecret(text) {
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv(this.algorithm, this.key, iv);
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        return `${iv.toString('hex')}:${encrypted}`;
+    }
+    decryptSecret(encryptedText) {
+        const textParts = encryptedText.split(':');
+        const iv = Buffer.from(textParts.shift(), 'hex');
+        const encryptedData = Buffer.from(textParts.join(':'), 'hex');
+        const decipher = crypto.createDecipheriv(this.algorithm, this.key, iv);
+        let decrypted = decipher.update(encryptedData, undefined, 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    }
+    generateWallet() {
+        const keypair = stellar_sdk_1.Keypair.random();
+        return {
+            publicKey: keypair.publicKey(),
+            secretKey: keypair.secret(),
+        };
+    }
+    signTransaction(encryptedSecret, xdr, networkPassphrase) {
+        const secretKey = this.decryptSecret(encryptedSecret);
+        const keypair = stellar_sdk_1.Keypair.fromSecret(secretKey);
+        const tx = stellar_sdk_1.TransactionBuilder.fromXDR(xdr, networkPassphrase);
+        tx.sign(keypair);
+        return tx.toXDR();
+    }
+};
+exports.WalletService = WalletService;
+exports.WalletService = WalletService = __decorate([
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [])
+], WalletService);
+
+
+/***/ },
+
 /***/ "./apps/user-job-service/src/user-job-service.controller.ts"
 /*!******************************************************************!*\
   !*** ./apps/user-job-service/src/user-job-service.controller.ts ***!
@@ -385,6 +491,12 @@ let UserJobServiceController = class UserJobServiceController {
     }
     getStats() {
         return this.userJobServiceService.getStats();
+    }
+    authLogin(data) {
+        return this.userJobServiceService.authLogin(data.email);
+    }
+    signTransaction(data) {
+        return this.userJobServiceService.signTransaction(data.userId, data.xdr);
     }
 };
 exports.UserJobServiceController = UserJobServiceController;
@@ -455,6 +567,18 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "getStats", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'auth_login' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "authLogin", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'sign_transaction' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "signTransaction", null);
 exports.UserJobServiceController = UserJobServiceController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [typeof (_a = typeof user_job_service_service_1.UserJobServiceService !== "undefined" && user_job_service_service_1.UserJobServiceService) === "function" ? _a : Object])
@@ -516,12 +640,15 @@ exports.UserJobServiceService = void 0;
 const common_1 = __webpack_require__(/*! @nestjs/common */ "@nestjs/common");
 const client_1 = __webpack_require__(/*! @prisma/client */ "@prisma/client");
 const stellar_service_service_1 = __webpack_require__(/*! ../../stellar-service/src/stellar-service.service */ "./apps/stellar-service/src/stellar-service.service.ts");
+const wallet_service_1 = __webpack_require__(/*! ../../stellar-service/src/wallet.service */ "./apps/stellar-service/src/wallet.service.ts");
 let UserJobServiceService = class UserJobServiceService {
     prisma;
     stellarService;
+    walletService;
     constructor() {
         this.prisma = new client_1.PrismaClient();
         this.stellarService = new stellar_service_service_1.StellarServiceService();
+        this.walletService = new wallet_service_1.WalletService();
     }
     async onModuleInit() {
         await this.prisma.$connect();
@@ -536,16 +663,17 @@ let UserJobServiceService = class UserJobServiceService {
         if (!mockClient || !mockClient.stellarSecret) {
             console.log('Generating persistent wallet for Mock Client...');
             const wallet = await this.stellarService.generateAndFundWallet();
+            const encryptedSecret = this.walletService.encryptSecret(wallet.secretKey);
             mockClient = await this.prisma.user.upsert({
                 where: { email: 'client@musubix.com' },
-                update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+                update: { stellarPubKey: wallet.publicKey, stellarSecret: encryptedSecret },
                 create: {
                     id: 'mock-client-id',
                     email: 'client@musubix.com',
                     name: 'Mock Client',
                     role: 'CLIENT',
                     stellarPubKey: wallet.publicKey,
-                    stellarSecret: wallet.secretKey,
+                    stellarSecret: encryptedSecret,
                 },
             });
         }
@@ -553,16 +681,28 @@ let UserJobServiceService = class UserJobServiceService {
         if (!mockFreelancer || !mockFreelancer.stellarSecret) {
             console.log('Generating persistent wallet for Mock Freelancer...');
             const wallet = await this.stellarService.generateAndFundWallet();
+            const encryptedSecret = this.walletService.encryptSecret(wallet.secretKey);
             mockFreelancer = await this.prisma.user.upsert({
                 where: { email: 'freelancer@musubix.com' },
-                update: { stellarPubKey: wallet.publicKey, stellarSecret: wallet.secretKey },
+                update: {
+                    stellarPubKey: wallet.publicKey,
+                    stellarSecret: encryptedSecret,
+                    bio: 'Fullstack Web3 Developer with 5+ years of experience building dApps on Stellar and Soroban. I specialize in NestJS and Next.js.',
+                    portfolioUrl: 'https://musubix.com/portfolio',
+                    githubUrl: 'https://github.com/musubix-dev',
+                    calendlyUrl: 'https://calendly.com/musubix-demo'
+                },
                 create: {
                     id: 'mock-freelancer-id',
                     email: 'freelancer@musubix.com',
-                    name: 'Mock Freelancer',
+                    name: 'Satoshi Nakamoto',
                     role: 'FREELANCER',
                     stellarPubKey: wallet.publicKey,
-                    stellarSecret: wallet.secretKey,
+                    stellarSecret: encryptedSecret,
+                    bio: 'Fullstack Web3 Developer with 5+ years of experience building dApps on Stellar and Soroban. I specialize in NestJS and Next.js.',
+                    portfolioUrl: 'https://musubix.com/portfolio',
+                    githubUrl: 'https://github.com/musubix-dev',
+                    calendlyUrl: 'https://calendly.com/musubix-demo'
                 },
             });
         }
@@ -570,16 +710,9 @@ let UserJobServiceService = class UserJobServiceService {
     async createJob(data) {
         if (!data.clientPubKey)
             throw new Error('clientPubKey is required');
-        const client = await this.prisma.user.upsert({
-            where: { stellarPubKey: data.clientPubKey },
-            update: {},
-            create: {
-                email: `${data.clientPubKey}@musubix.local`,
-                name: `Client ${data.clientPubKey.slice(0, 5)}`,
-                role: 'CLIENT',
-                stellarPubKey: data.clientPubKey,
-            },
-        });
+        const client = await this.prisma.user.findUnique({ where: { stellarPubKey: data.clientPubKey } });
+        if (!client)
+            throw new Error('Client not found');
         return this.prisma.job.create({
             data: {
                 title: data.title,
@@ -622,16 +755,9 @@ let UserJobServiceService = class UserJobServiceService {
         const job = await this.prisma.job.findUnique({ where: { id: jobId } });
         if (!job || job.status !== 'OPEN')
             throw new Error('Job is not available');
-        const freelancer = await this.prisma.user.upsert({
-            where: { stellarPubKey: freelancerPubKey },
-            update: {},
-            create: {
-                email: `${freelancerPubKey}@musubix.local`,
-                name: `Freelancer ${freelancerPubKey.slice(0, 5)}`,
-                role: 'FREELANCER',
-                stellarPubKey: freelancerPubKey,
-            },
-        });
+        const freelancer = await this.prisma.user.findUnique({ where: { stellarPubKey: freelancerPubKey } });
+        if (!freelancer)
+            throw new Error('Freelancer not found');
         return this.prisma.job.update({
             where: { id: jobId },
             data: {
@@ -748,6 +874,29 @@ let UserJobServiceService = class UserJobServiceService {
             totalFundsDistributed: aggregate._sum.budgetAmount || 0,
         };
     }
+    async authLogin(email) {
+        const user = await this.prisma.user.findUnique({ where: { email } });
+        if (user)
+            return user;
+        const wallet = await this.stellarService.generateAndFundWallet();
+        const encryptedSecret = this.walletService.encryptSecret(wallet.secretKey);
+        const role = email.toLowerCase().includes('client') ? 'CLIENT' : 'FREELANCER';
+        return this.prisma.user.create({
+            data: {
+                email,
+                name: email.split('@')[0],
+                role: role,
+                stellarPubKey: wallet.publicKey,
+                stellarSecret: encryptedSecret,
+            }
+        });
+    }
+    async signTransaction(userId, xdr) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || !user.stellarSecret)
+            throw new Error('User wallet not found');
+        return this.walletService.signTransaction(user.stellarSecret, xdr, 'Test SDF Network ; September 2015');
+    }
 };
 exports.UserJobServiceService = UserJobServiceService;
 exports.UserJobServiceService = UserJobServiceService = __decorate([
@@ -815,6 +964,16 @@ module.exports = require("@prisma/client");
 (module) {
 
 module.exports = require("@stellar/stellar-sdk");
+
+/***/ },
+
+/***/ "crypto"
+/*!*************************!*\
+  !*** external "crypto" ***!
+  \*************************/
+(module) {
+
+module.exports = require("crypto");
 
 /***/ },
 

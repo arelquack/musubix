@@ -1,10 +1,10 @@
 'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useWeb3 } from '@/components/Web3Provider';
+import { useAuth } from '@/components/AuthProvider';
 
 export const SiteHeader = () => {
-  const { address, connectWallet, isConnecting } = useWeb3();
+  const { user, login, isAuthenticating } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -37,13 +37,16 @@ export const SiteHeader = () => {
         <div className={`header-actions ${isOpen ? 'open' : ''}`}>
           <Link href="/freelancer/dashboard" className="btn btn-ghost btn-small">Find Work</Link>
           <Link href="/client/dashboard" className="btn btn-ghost btn-small">Client Dashboard</Link>
-          {!address ? (
-            <button className="btn btn-primary btn-small" onClick={connectWallet} disabled={isConnecting}>
-              {isConnecting ? 'Connecting...' : 'Connect wallet'}
+          {!user ? (
+            <button className="btn btn-primary btn-small" onClick={() => {
+              const email = prompt('Enter email to sign in: (e.g. client@musubix.com)');
+              if (email) login(email);
+            }} disabled={isAuthenticating}>
+              {isAuthenticating ? 'Signing in...' : 'Sign in'}
             </button>
           ) : (
             <button className="btn btn-primary btn-small" disabled style={{ opacity: 0.7 }}>
-              Wallet connected
+              {user.name}
             </button>
           )}
         </div>

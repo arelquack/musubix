@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Shippori_Mincho, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
-import { Web3Provider } from '@/components/Web3Provider';
+import { AuthProvider } from '@/components/AuthProvider';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const shippori = Shippori_Mincho({ weight: ['500', '600'], subsets: ['latin'], variable: '--font-shippori' });
@@ -20,9 +20,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${shippori.variable} ${jetbrains.variable}`} suppressHydrationWarning>
       <body>
-        <Web3Provider>
+        <AuthProvider>
           {children}
-        </Web3Provider>
+        </AuthProvider>
       </body>
     </html>
   );

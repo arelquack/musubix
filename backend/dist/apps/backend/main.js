@@ -67,30 +67,36 @@ let AppController = class AppController {
     getStats() {
         return this.userJobClient.send({ cmd: 'get_stats' }, {});
     }
+    authLogin(body) {
+        return this.userJobClient.send({ cmd: 'auth_login' }, { email: body.email });
+    }
+    signTransaction(body) {
+        return this.userJobClient.send({ cmd: 'sign_transaction' }, { userId: body.userId, xdr: body.xdr });
+    }
 };
 exports.AppController = AppController;
 __decorate([
-    (0, common_1.Post)(),
+    (0, common_1.Post)('jobs'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "createJob", null);
 __decorate([
-    (0, common_1.Get)(),
+    (0, common_1.Get)('jobs'),
     __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getJobs", null);
 __decorate([
-    (0, common_1.Get)('treasury'),
+    (0, common_1.Get)('jobs/treasury'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getTreasury", null);
 __decorate([
-    (0, common_1.Post)(':id/accept'),
+    (0, common_1.Post)('jobs/:id/accept'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -98,14 +104,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "acceptJob", null);
 __decorate([
-    (0, common_1.Post)(':id/lock'),
+    (0, common_1.Post)('jobs/:id/lock'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "lockEscrow", null);
 __decorate([
-    (0, common_1.Post)(':id/submit'),
+    (0, common_1.Post)('jobs/:id/submit'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -113,7 +119,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "submitWork", null);
 __decorate([
-    (0, common_1.Post)(':id/approve'),
+    (0, common_1.Post)('jobs/:id/approve'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -121,7 +127,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "approveWork", null);
 __decorate([
-    (0, common_1.Post)(':id/sync'),
+    (0, common_1.Post)('jobs/:id/sync'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -129,27 +135,41 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "syncStatus", null);
 __decorate([
-    (0, common_1.Post)('analyze'),
+    (0, common_1.Post)('jobs/analyze'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "analyzeJob", null);
 __decorate([
-    (0, common_1.Get)('/freelancers/:pubkey'),
+    (0, common_1.Get)('jobs/freelancers/:pubkey'),
     __param(0, (0, common_1.Param)('pubkey')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getFreelancerProfile", null);
 __decorate([
-    (0, common_1.Get)('stats'),
+    (0, common_1.Get)('jobs/stats'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], AppController.prototype, "getStats", null);
+__decorate([
+    (0, common_1.Post)('auth/login'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "authLogin", null);
+__decorate([
+    (0, common_1.Post)('sign-transaction'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], AppController.prototype, "signTransaction", null);
 exports.AppController = AppController = __decorate([
-    (0, common_1.Controller)('jobs'),
+    (0, common_1.Controller)(),
     __param(1, (0, common_1.Inject)('USER_JOB_SERVICE')),
     __metadata("design:paramtypes", [typeof (_a = typeof app_service_1.AppService !== "undefined" && app_service_1.AppService) === "function" ? _a : Object, typeof (_b = typeof microservices_1.ClientProxy !== "undefined" && microservices_1.ClientProxy) === "function" ? _b : Object])
 ], AppController);

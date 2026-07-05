@@ -64,4 +64,14 @@ export class UserJobServiceController {
   getStats() {
     return this.userJobServiceService.getStats();
   }
+
+  @MessagePattern({ cmd: 'auth_login' })
+  authLogin(data: { email: string }) {
+    return this.userJobServiceService.authLogin(data.email);
+  }
+
+  @MessagePattern({ cmd: 'sign_transaction' })
+  signTransaction(data: { userId: string; xdr: string }) {
+    return this.userJobServiceService.signTransaction(data.userId, data.xdr);
+  }
 }

@@ -1,30 +1,32 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { PageWrapper } from '@/components/layout/PageWrapper';
-import { useWeb3 } from '@/components/Web3Provider';
-import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
+import { useAuth } from '@/components/AuthProvider';
 import { Contract, nativeToScVal, TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { server, TESTNET_NETWORK_PASSPHRASE, TESTNET_NATIVE_TOKEN, ESCROW_CONTRACT_ID } from '@/lib/soroban';
 import Link from 'next/link';
 
 export default function ClientDashboard() {
-  const { address, balance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
+  const { user, balance, idrBalance, login, logout, isAuthenticating } = useAuth();
+  const address = user?.stellarPubKey;
   const [jobs, setJobs] = useState<any[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ title: '', description: '', budgetAmount: '' });
   const [processingJob, setProcessingJob] = useState<string | null>(null);
-  const [usdToXlmRate, setUsdToXlmRate] = useState<number | null>(null);
+  const [rates, setRates] = useState({ usd: 0, idr: 0 });
   const [aiAnalysis, setAiAnalysis] = useState<{score: number, feedback: string} | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [ratingModal, setRatingModal] = useState<{jobId: string, escrowId: string} | null>(null);
   const [ratingData, setRatingData] = useState({ rating: 5, review: '' });
+  const [paymentModal, setPaymentModal] = useState<{job: any, step: number} | null>(null);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   useEffect(() => {
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd')
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd,idr')
       .then(res => res.json())
       .then(data => {
-        if (data?.stellar?.usd) {
-          setUsdToXlmRate(1 / data.stellar.usd);
+        if (data?.stellar) {
+          setRates({ usd: data.stellar.usd, idr: data.stellar.idr });
         }
       })
       .catch(console.error);
@@ -50,7 +52,7 @@ export default function ClientDashboard() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address) {
-      alert('Please connect your Web3 wallet first.');
+      alert('Please sign in or connect your account first.');
       return;
     }
     if (!aiAnalysis) {
@@ -63,8 +65,8 @@ export default function ClientDashboard() {
     }
 
     try {
-      const xlmAmount = usdToXlmRate 
-        ? (parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)
+      const xlmAmount = rates.usd 
+        ? (parseFloat(formData.budgetAmount) / rates.usd).toFixed(2)
         : formData.budgetAmount;
 
       await fetch('http://localhost:4000/jobs', {
@@ -116,7 +118,7 @@ export default function ClientDashboard() {
 
   const handleSorobanTx = async (jobId: string, contractId: string, functionName: string, successStatus: string, args: any[] = []) => {
     if (!address) {
-      alert('Please connect your Web3 wallet first.');
+      alert('Please sign in or connect your account first.');
       return;
     }
     setProcessingJob(jobId);
@@ -129,15 +131,19 @@ export default function ClientDashboard() {
         .build();
 
       const preparedTx = await server.prepareTransaction(tx);
-      const { signedTxXdr } = await StellarWalletsKit.signTransaction(preparedTx.toXDR(), { 
-        networkPassphrase: TESTNET_NETWORK_PASSPHRASE, 
-        address 
+      
+      const signRes = await fetch('http://localhost:4000/sign-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user!.id, xdr: preparedTx.toXDR() })
       });
+      if (!signRes.ok) throw new Error('Failed to sign transaction securely');
+      const signedTxXdr = await signRes.text();
 
       const txRecord = await server.sendTransaction(TransactionBuilder.fromXDR(signedTxXdr, TESTNET_NETWORK_PASSPHRASE) as any);
       
       if (txRecord.status === 'ERROR') {
-        throw new Error('Transaction submission failed');
+        throw new Error('Secure payment submission failed');
       }
 
       // Poll for transaction success
@@ -146,7 +152,7 @@ export default function ClientDashboard() {
         await new Promise(resolve => setTimeout(resolve, 2000));
         const res = await server.getTransaction(txRecord.hash);
         status = res.status;
-        if (status === rpc.Api.GetTransactionStatus.FAILED) throw new Error('Transaction execution failed on-chain');
+        if (status === rpc.Api.GetTransactionStatus.FAILED) throw new Error('Secure payment processing failed');
         if (status === rpc.Api.GetTransactionStatus.SUCCESS) break;
       }
 
@@ -159,24 +165,46 @@ export default function ClientDashboard() {
       fetchJobs();
     } catch (e: any) {
       console.error(`Failed to execute ${functionName}:`, e);
-      alert(`Transaction Failed: ${e.message}`);
+      if (e.message && e.message.toLowerCase().includes('reject')) {
+        alert('Authorization cancelled.');
+      } else {
+        alert(`Payment Failed: ${e.message}`);
+      }
     } finally {
       setProcessingJob(null);
     }
   };
 
+  const handleSimulatePayment = () => {
+    if (!paymentModal) return;
+    setPaymentModal({ ...paymentModal, step: 1 });
+    setTimeout(() => {
+      setPaymentModal(prev => prev ? { ...prev, step: 2 } : null);
+      setTimeout(() => {
+        const job = paymentModal.job;
+        setPaymentModal(prev => prev ? { ...prev, step: 3 } : null);
+        handleAction(job.id, 'lock', job.escrowId, job)
+          .then((success) => {
+            if (success) setPaymentModal(prev => prev ? { ...prev, step: 4 } : null);
+            else setPaymentModal(null);
+          })
+          .catch(() => setPaymentModal(null));
+      }, 1500);
+    }, 1500);
+  };
+
   const handleAction = async (jobId: string, action: string, contractId?: string, job?: any) => {
     if (action === 'lock') {
       if (!address) {
-        alert('Please connect your Web3 wallet first.');
-        return;
+        alert('Please sign in or connect your account first.');
+        return false;
       }
       setProcessingJob(jobId);
       try {
         const res = await fetch(`http://localhost:4000/jobs/${jobId}/lock`, { method: 'POST' });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || 'Network Error: Failed to communicate with blockchain node. Please try again.');
+          throw new Error(errData.message || 'System Error: Failed to connect securely. Please try again.');
         }
         const updatedJob = await res.json();
         
@@ -190,12 +218,18 @@ export default function ClientDashboard() {
         await handleSorobanTx(jobId, updatedJob.escrowId, 'deposit', 'LOCKED', [
           new Contract(TESTNET_NATIVE_TOKEN).address().toScVal()
         ]);
+        
+        return true;
       } catch (e: any) {
         console.error('Lock flow failed:', e);
-        alert(`Lock flow failed: ${e.message}`);
+        if (e.message && e.message.toLowerCase().includes('reject')) {
+          alert('Authorization cancelled.');
+        } else {
+          alert(`System Error: ${e.message}`);
+        }
         setProcessingJob(null);
+        return false;
       }
-      return;
     }
     if (action === 'approve') {
       setProcessingJob(jobId);
@@ -244,18 +278,18 @@ export default function ClientDashboard() {
       
       if (!res.ok) {
         if (data.detail === 'account already funded to starting balance') {
-          alert('Top up failed: Your account is already fully funded for testnet (10,000 XLM).');
+          alert('Add Funds failed: Your account is already fully funded.');
         } else {
-          alert(`Top up failed: ${data.detail || data.title || 'Unknown error'}`);
+          alert(`Add Funds failed: ${data.detail || data.title || 'Unknown error'}`);
         }
       } else {
-        alert('Top up successful! 10,000 testnet XLM has been added to your wallet.');
+        alert('Funds successfully added to your account!');
         setTimeout(() => {
           window.location.reload();
         }, 1000);
       }
     } catch (e: any) {
-      alert(`Top up error: ${e.message}`);
+      alert(`Add Funds error: ${e.message}`);
     } finally {
       setIsToppingUp(false);
     }
@@ -275,7 +309,7 @@ export default function ClientDashboard() {
 
   const formatAddress = (addr: string) => {
     if (!addr) return '';
-    return `${addr.slice(0, 5)}...${addr.slice(-4)}`;
+    return `User ID: ...${addr.slice(-4)}`;
   };
 
   return (
@@ -287,9 +321,12 @@ export default function ClientDashboard() {
               <h1>Client Dashboard</h1>
               <p>Manage your posted jobs and create new ones.</p>
             </div>
-            {!address ? (
-               <button className="btn btn-primary" onClick={connectWallet} disabled={isConnecting}>
-                 {isConnecting ? 'Connecting...' : 'Connect wallet'}
+            {!user ? (
+               <button className="btn btn-primary" onClick={() => {
+                 const email = prompt('Enter your email to sign in: (e.g. client@musubix.com)');
+                 if (email) login(email);
+               }} disabled={isAuthenticating}>
+                 {isAuthenticating ? 'Signing In...' : 'Sign In / Connect Account'}
                </button>
             ) : (
                <button className="btn btn-ghost" onClick={() => {
@@ -304,22 +341,24 @@ export default function ClientDashboard() {
           {address && (
             <div className="wallet-bar">
               <div className="wallet-field">
-                <span className="label">Wallet Address</span>
+                <span className="label">Account ID</span>
                 <span className="value address" onClick={() => navigator.clipboard.writeText(address)} title="Click to copy">{formatAddress(address)}</span>
               </div>
               <div className="wallet-divider"></div>
               <div className="wallet-field">
-                <span className="label">Testnet Balance</span>
-                <span className="value">{balance ? parseFloat(balance).toFixed(2) : '0'} XLM</span>
-                {usdToXlmRate && balance && (
-                  <span className="sub">≈ ${(parseFloat(balance) / usdToXlmRate).toFixed(2)} USD</span>
+                <span className="label">Available Platform Balance</span>
+                <span className="value" style={{ color: 'var(--matsu)' }}>
+                  {balance && rates.idr ? (parseFloat(balance) * rates.idr).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0'} IDR
+                </span>
+                {balance && (
+                  <span className="sub">≈ {parseFloat(balance).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Credits (XLM)</span>
                 )}
               </div>
               <div className="wallet-actions">
                 <button className="btn btn-ghost btn-small" onClick={handleTopUp} disabled={isToppingUp}>
-                  {isToppingUp ? 'Topping up...' : 'Top up 10k XLM'}
+                  {isToppingUp ? 'Adding Funds...' : 'Add Funds (Demo)'}
                 </button>
-                <button className="btn-danger-text" onClick={disconnectWallet}>Disconnect</button>
+                <button className="btn-danger-text" onClick={logout}>Sign Out</button>
               </div>
             </div>
           )}
@@ -340,9 +379,9 @@ export default function ClientDashboard() {
               <div>
                 <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-2)', marginBottom: '8px', fontWeight: 600 }}>Budget (USD)</label>
                 <input required type="number" style={{ width: '100%', background: 'var(--ink)', border: '1px solid var(--ink-line)', color: 'var(--text-1)', borderRadius: 'var(--radius-s)', padding: '12px 16px', fontFamily: 'var(--font-body)', fontSize: '15px' }} value={formData.budgetAmount} onChange={(e) => {setFormData({...formData, budgetAmount: e.target.value}); setAiAnalysis(null);}} />
-                {usdToXlmRate && formData.budgetAmount && (
+                {rates.usd && formData.budgetAmount && (
                   <p style={{ fontSize: '12px', color: 'var(--kin)', marginTop: '8px', fontFamily: 'var(--font-mono)' }}>
-                    ≈ {(parseFloat(formData.budgetAmount) * usdToXlmRate).toFixed(2)} XLM
+                    ≈ {(parseFloat(formData.budgetAmount) / rates.usd).toFixed(2)} XLM
                   </p>
                 )}
               </div>
@@ -375,19 +414,29 @@ export default function ClientDashboard() {
           </div>
         )}
 
+        <div className="job-toolbar">
+          <button className={`chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All Jobs</button>
+          <button className={`chip ${activeFilter === 'OPEN' ? 'active' : ''}`} onClick={() => setActiveFilter('OPEN')}>Open</button>
+          <button className={`chip ${activeFilter === 'IN_PROGRESS' ? 'active' : ''}`} onClick={() => setActiveFilter('IN_PROGRESS')}>In Progress</button>
+          <button className={`chip ${activeFilter === 'LOCKED' ? 'active' : ''}`} onClick={() => setActiveFilter('LOCKED')}>Locked (Escrow)</button>
+          <button className={`chip ${activeFilter === 'IN_REVIEW' ? 'active' : ''}`} onClick={() => setActiveFilter('IN_REVIEW')}>In Review</button>
+          <button className={`chip ${activeFilter === 'COMPLETED' ? 'active' : ''}`} onClick={() => setActiveFilter('COMPLETED')}>Completed</button>
+          <button className={`chip ${activeFilter === 'WITHDRAWN' ? 'active' : ''}`} onClick={() => setActiveFilter('WITHDRAWN')}>Withdrawn</button>
+        </div>
+
         <div className="job-grid">
           {!Array.isArray(jobs) ? (
             <div className="empty-state">
               <h3>Connection Error</h3>
               <p>Error loading jobs from server. Is the backend running?</p>
             </div>
-          ) : jobs.length === 0 ? (
+          ) : jobs.filter(job => activeFilter === 'all' || job.status === activeFilter).length === 0 ? (
             <div className="empty-state">
-              <h3>No jobs posted yet</h3>
-              <p>When you post a job, it will appear here.</p>
+              <h3>No jobs found</h3>
+              <p>{jobs.length === 0 ? 'When you post a job, it will appear here.' : 'No jobs match this filter currently.'}</p>
             </div>
           ) : (
-            jobs.map((job: any) => (
+            jobs.filter(job => activeFilter === 'all' || job.status === activeFilter).map((job: any) => (
               <div className="job-card" key={job.id}>
                 <div className="job-card-top">
                   <h3>{job.title}</h3>
@@ -424,12 +473,12 @@ export default function ClientDashboard() {
                       <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>Waiting for freelancer...</span>
                     )}
                     {job.status === 'IN_PROGRESS' && (
-                      <button className="btn btn-primary btn-small" style={{ width: '100%', justifyContent: 'center' }} onClick={() => handleAction(job.id, 'lock', job.escrowId)}>
-                        Lock Escrow
+                      <button className="btn btn-primary btn-small" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setPaymentModal({ job, step: 0 })} disabled={processingJob === job.id}>
+                        {processingJob === job.id ? 'Processing...' : 'Pay & Fund Project'}
                       </button>
                     )}
                     {job.status === 'LOCKED' && (
-                      <span style={{ fontSize: '13px', color: 'var(--ai)', fontWeight: 600 }}>Funds Locked 🔒</span>
+                      <span style={{ fontSize: '13px', color: 'var(--ai)', fontWeight: 600 }}>Funded 🔒</span>
                     )}
                     {job.status === 'IN_REVIEW' && (
                       <button 
@@ -438,7 +487,7 @@ export default function ClientDashboard() {
                         onClick={() => setRatingModal({ jobId: job.id, escrowId: job.escrowId })}
                         disabled={processingJob === job.id}
                       >
-                        {processingJob === job.id ? 'Processing...' : 'Approve & Pay'}
+                        {processingJob === job.id ? 'Processing Secure Payment...' : 'Approve & Pay'}
                       </button>
                     )}
                     {job.status === 'COMPLETED' && (
@@ -488,9 +537,86 @@ export default function ClientDashboard() {
                   disabled={processingJob === ratingModal.jobId}
                   onClick={() => handleAction(ratingModal.jobId, 'approve', ratingModal.escrowId)}
                 >
-                  {processingJob === ratingModal.jobId ? 'Processing...' : 'Submit & Pay'}
+                  {processingJob === ratingModal.jobId ? 'Processing Secure Payment...' : 'Approve & Pay'}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {paymentModal && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '20px' }}>
+            <div style={{ background: 'var(--ink-card)', padding: '32px', borderRadius: 'var(--radius-m)', border: '1px solid var(--ink-line)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+              
+              {(paymentModal.step === 0 || paymentModal.step === 1 || paymentModal.step === 2 || paymentModal.step === 3) && (
+                <>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: '0 0 24px', fontWeight: 500 }}>Checkout</h3>
+                  <div style={{ background: 'var(--ink)', padding: '16px', borderRadius: 'var(--radius-s)', border: '1px solid var(--ink-line-soft)', marginBottom: '24px', textAlign: 'left' }}>
+                    <span style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--text-3)', fontWeight: 600 }}>Order Summary</span>
+                    <p style={{ margin: '8px 0 4px', fontWeight: 600, fontSize: '16px' }}>{paymentModal.job.title}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', borderTop: '1px solid var(--ink-line-soft)', paddingTop: '12px' }}>
+                      <span style={{ color: 'var(--text-2)', fontSize: '14px' }}>Total Amount</span>
+                      <span style={{ fontWeight: 'bold', color: 'var(--matsu)', fontSize: '18px' }}>
+                        {rates.idr && paymentModal.job.currency === 'XLM' ? 
+                          `Rp ${(parseFloat(paymentModal.job.budgetAmount) * rates.idr).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
+                          `${paymentModal.job.budgetAmount} ${paymentModal.job.currency}`
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {paymentModal.step === 0 ? (
+                <>
+                  <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ width: '160px', height: '160px', background: '#fff', padding: '10px', borderRadius: 'var(--radius-s)' }}>
+                      <svg viewBox="0 0 100 100" fill="#000" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 10h30v30H10zm5 5v20h20V15zM60 10h30v30H60zm5 5v20h20V15zM10 60h30v30H10zm5 5v20h20V65z" />
+                        <rect x="20" y="20" width="10" height="10" />
+                        <rect x="70" y="20" width="10" height="10" />
+                        <rect x="20" y="70" width="10" height="10" />
+                        <rect x="60" y="60" width="10" height="10" />
+                        <rect x="70" y="60" width="10" height="10" />
+                        <rect x="80" y="70" width="10" height="10" />
+                        <rect x="60" y="80" width="20" height="10" />
+                        <rect x="50" y="50" width="10" height="40" />
+                        <rect x="40" y="40" width="20" height="10" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '14px', color: 'var(--text-2)', marginBottom: '24px' }}>Scan QRIS using your mobile banking app or e-wallet.</p>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setPaymentModal(null)}>Cancel</button>
+                    <button className="btn btn-primary" style={{ flex: 2, justifyContent: 'center' }} onClick={handleSimulatePayment}>Simulate Fiat Payment (Demo)</button>
+                  </div>
+                </>
+              ) : (paymentModal.step === 1 || paymentModal.step === 2 || paymentModal.step === 3) ? (
+                <div style={{ padding: '20px 0 10px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ width: '40px', height: '40px', border: '3px solid var(--ink-line)', borderTopColor: 'var(--kin)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '20px' }}></div>
+                  <p style={{ fontWeight: 600, color: paymentModal.step === 2 ? 'var(--matsu)' : 'var(--text-1)' }}>
+                    {paymentModal.step === 1 && 'Connecting to Payment Gateway...'}
+                    {paymentModal.step === 2 && 'Payment Verified!'}
+                    {paymentModal.step === 3 && 'Authorizing secure network...'}
+                  </p>
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+              ) : null}
+
+              {paymentModal.step === 4 && (
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                  <div style={{ width: '60px', height: '60px', background: 'rgba(92, 138, 110, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', color: 'var(--matsu)' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ width: '30px', height: '30px' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', margin: '0 0 12px', fontWeight: 500 }}>Project Funded!</h3>
+                  <p style={{ color: 'var(--text-2)', fontSize: '14.5px', marginBottom: '24px' }}>
+                    Your payment was successful and the funds are safely secured.
+                  </p>
+                  <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setPaymentModal(null)}>Done</button>
+                </div>
+              )}
             </div>
           </div>
         )}

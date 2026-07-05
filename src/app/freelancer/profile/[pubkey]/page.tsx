@@ -9,6 +9,7 @@ export default function FreelancerProfile() {
   const params = useParams();
   const pubkey = params.pubkey as string;
   const [profileJobs, setProfileJobs] = useState<any[]>([]);
+  const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,12 +19,13 @@ export default function FreelancerProfile() {
       try {
         setLoading(true);
         
+        let offChainUser: any = null;
         let offChainJobs: any[] = [];
         try {
           const res = await fetch(`http://localhost:4000/jobs/freelancers/${pubkey}`);
           if (res.ok) {
-            const data = await res.json();
-            offChainJobs = data.jobsTaken || [];
+            offChainUser = await res.json();
+            offChainJobs = offChainUser.jobsTaken || [];
           }
         } catch (e) {
           console.error('Failed to fetch off-chain data', e);
@@ -45,6 +47,7 @@ export default function FreelancerProfile() {
         });
 
         setProfileJobs(mergedJobs);
+        setUserData(offChainUser);
       } catch (err: any) {
         console.error('Failed to fetch profile:', err);
         setError('Failed to load verified portfolio.');
@@ -65,10 +68,41 @@ export default function FreelancerProfile() {
       <div className="wrap">
         <div className="dash-header">
           <div className="dash-title-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-            <h1 style={{ margin: 0 }}>Freelancer Profile</h1>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', background: 'var(--ink-card)', border: '1px solid var(--ink-line)', borderRadius: '999px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--matsu)' }}></div>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text-1)' }}>{truncateAddress(pubkey)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+              <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--ink-card)', border: '2px solid var(--ink-line)', overflow: 'hidden' }}>
+                <img src={`https://api.dicebear.com/7.x/notionists/svg?seed=${pubkey}&backgroundColor=transparent`} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div>
+                <h1 style={{ margin: '0 0 8px', fontSize: '32px' }}>{userData?.name || 'Anonymous Freelancer'}</h1>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', background: 'var(--ink-card)', border: '1px solid var(--ink-line)', borderRadius: '999px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--matsu)' }}></div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text-1)' }}>{truncateAddress(pubkey)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {userData?.bio && (
+              <p style={{ fontSize: '16px', color: 'var(--text-2)', maxWidth: '600px', margin: '16px 0 0', lineHeight: 1.6 }}>
+                {userData.bio}
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
+              {userData?.calendlyUrl && (
+                <a href={userData.calendlyUrl} target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ background: 'var(--matsu)', textDecoration: 'none' }}>
+                  Schedule Meeting
+                </a>
+              )}
+              {userData?.portfolioUrl && (
+                <a href={userData.portfolioUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ textDecoration: 'none' }}>
+                  Portfolio
+                </a>
+              )}
+              {userData?.githubUrl && (
+                <a href={userData.githubUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" style={{ textDecoration: 'none' }}>
+                  GitHub
+                </a>
+              )}
             </div>
           </div>
         </div>
