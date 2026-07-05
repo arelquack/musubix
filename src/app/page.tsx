@@ -23,7 +23,7 @@ export default function Home() {
               <h1>Hire and get hired<br/>without the <em>border tax</em>.</h1>
               <p className="lede">Post a task, and your payment locks in a smart contract the moment work begins. It converts between currencies automatically and releases the instant you approve — no wire fees, no waiting on a bank.</p>
               
-              <div style={{ marginTop: '32px', marginBottom: '40px', display: 'flex', gap: '40px' }}>
+              <div className="stats-container" style={{ marginTop: '32px', marginBottom: '40px', display: 'flex', gap: '40px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '36px', fontWeight: 500, fontFamily: 'var(--font-display)', color: 'var(--matsu)', lineHeight: 1 }}>{stats.totalJobsCompleted}</span>
                   <span style={{ fontSize: '12px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '8px', fontWeight: 600 }}>Jobs Completed</span>
