@@ -7,6 +7,7 @@ import { useWeb3 } from '@/components/Web3Provider';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 import { Contract, nativeToScVal, TransactionBuilder, rpc } from '@stellar/stellar-sdk';
 import { server, TESTNET_NETWORK_PASSPHRASE, TESTNET_NATIVE_TOKEN, ESCROW_CONTRACT_ID } from '@/lib/soroban';
+import Link from 'next/link';
 
 export default function ClientDashboard() {
   const { address, balance, connectWallet, disconnectWallet, isConnecting } = useWeb3();
@@ -358,6 +359,17 @@ export default function ClientDashboard() {
                 <div className="mb-4 p-3 bg-slate-950 rounded border border-slate-800">
                   <span className="text-xs font-semibold text-slate-500 uppercase">Freelancer Submission:</span>
                   <p className="text-sm text-slate-300 mt-1 break-all">{job.workSubmission}</p>
+                </div>
+              )}
+
+              {job.freelancer?.stellarPubKey && (job.status === 'IN_PROGRESS' || job.status === 'IN_REVIEW' || job.status === 'COMPLETED') && (
+                <div className="mb-4">
+                  <Link href={`/freelancer/profile/${job.freelancer.stellarPubKey}`} className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1">
+                    <span>View Freelancer Profile</span>
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </Link>
                 </div>
               )}
 
