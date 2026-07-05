@@ -59,4 +59,9 @@ export class UserJobServiceController {
   getFreelancer(data: { pubkey: string }) {
     return this.userJobServiceService.getFreelancerProfile(data.pubkey);
   }
+
+  @MessagePattern({ cmd: 'get_stats' })
+  getStats() {
+    return this.userJobServiceService.getStats();
+  }
 }

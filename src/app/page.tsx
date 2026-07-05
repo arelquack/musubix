@@ -1,9 +1,18 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/PageWrapper';
 
 export default function Home() {
+  const [stats, setStats] = useState({ totalJobsCompleted: 0, totalFundsDistributed: 0 });
+
+  useEffect(() => {
+    fetch('http://localhost:4000/jobs/stats')
+      .then(res => res.json())
+      .then(data => setStats(data))
+      .catch(console.error);
+  }, []);
+
   return (
     <PageWrapper>
       <main>
@@ -13,6 +22,18 @@ export default function Home() {
               <span className="eyebrow">Built on Stellar &middot; Soroban escrow</span>
               <h1>Hire and get hired<br/>without the <em>border tax</em>.</h1>
               <p className="lede">Post a task, and your payment locks in a smart contract the moment work begins. It converts between currencies automatically and releases the instant you approve — no wire fees, no waiting on a bank.</p>
+              
+              <div style={{ marginTop: '32px', marginBottom: '40px', display: 'flex', gap: '40px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '36px', fontWeight: 500, fontFamily: 'var(--font-display)', color: 'var(--matsu)', lineHeight: 1 }}>{stats.totalJobsCompleted}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '8px', fontWeight: 600 }}>Jobs Completed</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '36px', fontWeight: 500, fontFamily: 'var(--font-display)', color: 'var(--matsu)', lineHeight: 1 }}>{stats.totalFundsDistributed.toLocaleString()} <span style={{ fontSize: '18px', color: 'var(--text-2)' }}>XLM</span></span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: '8px', fontWeight: 600 }}>Funds Distributed</span>
+                </div>
+              </div>
+
               <div className="hero-cta">
                 <Link href="/client/dashboard" className="btn btn-primary">I want to hire</Link>
                 <Link href="/freelancer/dashboard" className="btn btn-ghost">I want to work</Link>

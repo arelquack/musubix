@@ -243,4 +243,16 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     if (!user) throw new Error('Freelancer not found');
     return user;
   }
+
+  async getStats() {
+    const aggregate = await this.prisma.job.aggregate({
+      where: { status: { in: ['COMPLETED', 'WITHDRAWN'] } },
+      _sum: { budgetAmount: true },
+      _count: { id: true },
+    });
+    return {
+      totalJobsCompleted: aggregate._count.id || 0,
+      totalFundsDistributed: aggregate._sum.budgetAmount || 0,
+    };
+  }
 }

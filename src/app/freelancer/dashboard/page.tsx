@@ -237,7 +237,8 @@ export default function FreelancerDashboard() {
           <button className={`chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All Jobs</button>
           <button className={`chip ${activeFilter === 'OPEN' ? 'active' : ''}`} onClick={() => setActiveFilter('OPEN')}>Open</button>
           <button className={`chip ${activeFilter === 'IN_PROGRESS' || activeFilter === 'LOCKED' ? 'active' : ''}`} onClick={() => setActiveFilter('IN_PROGRESS')}>Active</button>
-          <button className={`chip ${activeFilter === 'COMPLETED' || activeFilter === 'WITHDRAWN' ? 'active' : ''}`} onClick={() => setActiveFilter('COMPLETED')}>Completed</button>
+          <button className={`chip ${activeFilter === 'COMPLETED' ? 'active' : ''}`} onClick={() => setActiveFilter('COMPLETED')}>Completed</button>
+          <button className={`chip ${activeFilter === 'WITHDRAWN' ? 'active' : ''}`} onClick={() => setActiveFilter('WITHDRAWN')}>Withdrawn</button>
         </div>
 
         <div className="job-grid">

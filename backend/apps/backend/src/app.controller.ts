@@ -59,4 +59,9 @@ export class AppController {
   getFreelancerProfile(@Param('pubkey') pubkey: string) {
     return this.userJobClient.send({ cmd: 'get_freelancer' }, { pubkey });
   }
+
+  @Get('stats')
+  getStats() {
+    return this.userJobClient.send({ cmd: 'get_stats' }, {});
+  }
 }
