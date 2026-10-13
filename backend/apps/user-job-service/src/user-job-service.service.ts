@@ -118,6 +118,16 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async getJobById(id: string) {
+    return this.prisma.job.findUnique({
+      where: { id },
+      include: {
+        client: { select: { name: true, stellarPubKey: true, avatarUrl: true } },
+        freelancer: { select: { name: true, stellarPubKey: true, avatarUrl: true } },
+      },
+    });
+  }
+
   async acceptJob(jobId: string, freelancerPubKey: string) {
     if (!freelancerPubKey) throw new Error('freelancerPubKey is required');
 
@@ -278,9 +288,7 @@ export class UserJobServiceService implements OnModuleInit, OnModuleDestroy {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || !user.stellarSecret) throw new Error('User wallet not found');
 
-    const secretKey = this.walletService.decryptSecret(user.stellarSecret);
-    
-    return this.walletService.signTransaction(secretKey, xdr);
+    return this.walletService.signTransaction(user.stellarSecret, xdr, 'Test SDF Network ; September 2015');
   }
 
   async updateProfile(pubKey: string, data: { bio?: string, skills?: string, avatarUrl?: string }) {

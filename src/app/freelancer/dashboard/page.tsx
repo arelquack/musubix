@@ -299,27 +299,38 @@ export default function FreelancerDashboard() {
                   <h3>{job.title}</h3>
                   <span className={`stamp ${getStatusStamp(job.status)}`}>{job.status}</span>
                 </div>
-                <p className="desc">{job.description}</p>
+                <div className="desc">
+                  {job.description && job.description.length > 140 ? (
+                    <>
+                      {job.description.slice(0, 140)}...{' '}
+                      <Link href={`/jobs/${job.id}`} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '13px' }}>
+                        Read more &rarr;
+                      </Link>
+                    </>
+                  ) : (
+                    job.description
+                  )}
+                </div>
                 
                 {job.aiScore !== null && job.aiScore !== undefined && (
-                  <div style={{ padding: '12px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: job.aiScore >= 80 ? 'rgba(92,138,110,0.1)' : job.aiScore >= 60 ? 'rgba(201,162,75,0.1)' : 'rgba(200,73,60,0.08)', borderColor: job.aiScore >= 80 ? 'var(--matsu)' : job.aiScore >= 60 ? 'var(--kin)' : 'var(--shu)', marginTop: '4px' }}>
+                  <div style={{ padding: '12px', borderRadius: 'var(--radius-s)', border: '1px solid', backgroundColor: job.aiScore >= 80 ? 'rgba(16,185,129,0.08)' : job.aiScore >= 60 ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)', borderColor: job.aiScore >= 80 ? '#10b981' : job.aiScore >= 60 ? '#f59e0b' : '#ef4444', marginTop: '4px' }}>
                     {job.aiScore >= 80 ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--matsu)' }}>
-                        ✅ AI Score: {job.aiScore}/100 - Good Job Specs
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: '#059669' }}>
+                        <span style={{ fontWeight: 700 }}>AI Score:</span> {job.aiScore}/100 &middot; Verified Job Specs
                       </div>
                     ) : job.aiScore >= 60 ? (
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', color: 'var(--kin)', marginBottom: '4px' }}>
-                          ⚠️ AI Score: {job.aiScore}/100 - Average Job Specs
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#d97706', marginBottom: '4px' }}>
+                          <span>AI Score:</span> {job.aiScore}/100 &middot; Moderate Job Specs
                         </div>
-                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-1)' }}>{job.aiFeedback}</p>
+                        <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-muted)' }}>{job.aiFeedback}</p>
                       </div>
                     ) : (
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 'bold', color: 'var(--shu)', marginBottom: '4px' }}>
-                          🚨 AI Warning (Score: {job.aiScore}/100) - Underpriced / Poor Specs
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>
+                          <span>AI Assessment:</span> {job.aiScore}/100 &middot; Caution Required
                         </div>
-                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-1)' }}>{job.aiFeedback}</p>
+                        <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-muted)' }}>{job.aiFeedback}</p>
                       </div>
                     )}
                   </div>

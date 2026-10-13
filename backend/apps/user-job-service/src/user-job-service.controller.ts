@@ -20,6 +20,11 @@ export class UserJobServiceController {
     return this.userJobServiceService.getJobs(query);
   }
 
+  @MessagePattern({ cmd: 'get_job' })
+  getJob(data: { id: string }) {
+    return this.userJobServiceService.getJobById(data.id);
+  }
+
   @MessagePattern({ cmd: 'get_treasury' })
   getTreasury() {
     return { issuerPubKey: this.userJobServiceService['stellarService'].getTreasuryPubKey() };

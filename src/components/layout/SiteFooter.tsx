@@ -1,17 +1,72 @@
 import React from 'react';
+import Link from 'next/link';
 
 export const SiteFooter = () => {
   return (
-    <footer className="site-footer">
+    <footer className="footer-container">
       <div className="wrap">
-        <span className="brand" style={{ fontSize: '16px' }}>
-          <svg className="knot-mark" style={{ width: '22px', height: '13px' }} viewBox="0 0 60 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M4 17C4 6 16 4 22 10C28 16 28 18 22 24C16 30 4 28 4 17Z" stroke="#6d7288" strokeWidth="3" strokeLinecap="round"/>
-            <path d="M56 17C56 6 44 4 38 10C32 16 32 18 38 24C44 30 56 28 56 17Z" stroke="#6d7288" strokeWidth="3" strokeLinecap="round"/>
-          </svg>
-          Musubix
-        </span>
-        <p>Stellar Testnet demo — no real funds move.</p>
+        <div className="footer-main-row">
+          <div>
+            <Link href="/" className="brand" style={{ fontSize: '18px', display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '14px', textDecoration: 'none' }}>
+              <svg className="knot-mark" style={{ width: '24px', height: '14px' }} viewBox="0 0 60 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M4 17C4 6 16 4 22 10C28 16 28 18 22 24C16 30 4 28 4 17Z" stroke="#c8493c" strokeWidth="3" strokeLinecap="round"/>
+                <path d="M56 17C56 6 44 4 38 10C32 16 32 18 38 24C44 30 56 28 56 17Z" stroke="#c9a24b" strokeWidth="3" strokeLinecap="round"/>
+              </svg>
+              <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>Musubix</span>
+            </Link>
+            <p style={{ color: 'var(--text-2)', fontSize: '14px', maxWidth: '34ch', lineHeight: 1.6, margin: 0 }}>
+              The decentralized borderless freelance platform tied by Stellar and powered by Soroban escrow smart contracts.
+            </p>
+          </div>
+
+          <div className="footer-links-grid">
+            <div className="footer-col">
+              <h5>Partner with us</h5>
+              <ul>
+                <li><Link href="/client/dashboard">Post a Project</Link></li>
+                <li><Link href="#features">Smart Escrow</Link></li>
+                <li><Link href="#categories">Talent Directory</Link></li>
+                <li><a href="https://stellar.org" target="_blank" rel="noreferrer">Stellar DEX</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h5>Freelancers</h5>
+              <ul>
+                <li><Link href="/freelancer/dashboard">Browse Jobs</Link></li>
+                <li><Link href="/freelancer/dashboard">Custodial Wallet</Link></li>
+                <li><Link href="#community">Success Stories</Link></li>
+                <li><a href="https://soroban.stellar.org" target="_blank" rel="noreferrer">Soroban Docs</a></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h5>Ecosystem</h5>
+              <ul>
+                <li><Link href="#categories">UI/UX Design</Link></li>
+                <li><Link href="#categories">Blockchain Dev</Link></li>
+                <li><Link href="#categories">Data Science</Link></li>
+                <li><Link href="#categories">Smart Contracts</Link></li>
+              </ul>
+            </div>
+            <div className="footer-col">
+              <h5>Resources</h5>
+              <ul>
+                <li><a href="https://testnet.stellarchain.io" target="_blank" rel="noreferrer">Stellar Explorer</a></li>
+                <li><a href="https://laboratory.stellar.org" target="_blank" rel="noreferrer">Laboratory</a></li>
+                <li><a href="https://discord.gg/stellar" target="_blank" rel="noreferrer">Discord Devs</a></li>
+                <li><a href="https://github.com" target="_blank" rel="noreferrer">Open Source</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <span>Stellar Testnet Live Demo &middot; Non-production environment</span>
+          </div>
+          <div>
+            &copy; {new Date().getFullYear()} Musubix. All rights reserved.
+          </div>
+        </div>
       </div>
     </footer>
   );

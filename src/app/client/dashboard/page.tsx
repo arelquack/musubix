@@ -212,7 +212,7 @@ export default function ClientDashboard() {
         await handleSorobanTx(jobId, updatedJob.escrowId, 'initialize', 'IN_PROGRESS', [
           nativeToScVal(address, { type: 'address' }),
           nativeToScVal(updatedJob.freelancer.stellarPubKey, { type: 'address' }),
-          nativeToScVal(updatedJob.budgetAmount * 10000000, { type: 'i128' }),
+          nativeToScVal(Math.floor(updatedJob.budgetAmount * 10000000), { type: 'i128' }),
         ]);
 
         await handleSorobanTx(jobId, updatedJob.escrowId, 'deposit', 'LOCKED', [
@@ -442,20 +442,35 @@ export default function ClientDashboard() {
                   <h3>{job.title}</h3>
                   <span className={`stamp ${getStatusStamp(job.status)}`}>{job.status}</span>
                 </div>
-                <p className="desc">{job.description}</p>
+                <div className="desc">
+                  {job.description && job.description.length > 140 ? (
+                    <>
+                      {job.description.slice(0, 140)}...{' '}
+                      <Link href={`/jobs/${job.id}`} style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '13px' }}>
+                        Read more &rarr;
+                      </Link>
+                    </>
+                  ) : (
+                    job.description
+                  )}
+                </div>
                 
                 {job.status === 'IN_REVIEW' && job.workSubmission && (
-                  <div style={{ padding: '12px', background: 'var(--ink)', borderRadius: 'var(--radius-s)', border: '1px solid var(--ink-line)', marginTop: '8px' }}>
-                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-3)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Submission:</span>
-                    <p style={{ fontSize: '13.5px', color: 'var(--text-1)', margin: 0, wordBreak: 'break-all' }}>{job.workSubmission}</p>
+                  <div style={{ padding: '12px', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-s)', border: '1px solid var(--border-line)', marginTop: '8px' }}>
+                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-subtle)', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Submission:</span>
+                    <p style={{ fontSize: '13px', color: 'var(--text-main)', margin: 0, wordBreak: 'break-all' }}>{job.workSubmission}</p>
                   </div>
                 )}
 
                 {job.freelancer?.stellarPubKey && (job.status === 'IN_PROGRESS' || job.status === 'IN_REVIEW' || job.status === 'COMPLETED' || job.status === 'WITHDRAWN') && (
-                  <div>
-                    <Link href={`/freelancer/profile/${job.freelancer.stellarPubKey}`} className="profile-link">
-                      View Freelancer Profile
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <div style={{ marginTop: '4px' }}>
+                    <Link 
+                      href={`/freelancer/profile/${job.freelancer.stellarPubKey}`} 
+                      className="btn btn-ghost btn-small"
+                      style={{ fontSize: '12.5px', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <span>Freelancer: {job.freelancer.name || 'Profile'}</span>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: '12px', height: '12px' }}>
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </Link>

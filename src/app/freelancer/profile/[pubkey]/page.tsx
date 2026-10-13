@@ -84,17 +84,17 @@ export default function FreelancerProfile() {
                 )}
               </div>
               <div>
-                <h1 style={{ margin: '0 0 8px', fontSize: '32px' }}>{userData?.name || 'Anonymous Freelancer'}</h1>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 16px', background: 'var(--ink-card)', border: '1px solid var(--ink-line)', borderRadius: '999px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--matsu)' }}></div>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text-1)' }}>{truncateAddress(pubkey)}</span>
+                <h1 style={{ margin: '0 0 8px', fontSize: '32px', fontWeight: 700, color: 'var(--text-main)' }}>{userData?.name || 'Anonymous Freelancer'}</h1>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '5px 12px', background: 'var(--bg-subtle)', border: '1px solid var(--border-line)', borderRadius: '6px' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-green)' }}></div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-muted)' }}>{truncateAddress(pubkey)}</span>
                 </div>
               </div>
             </div>
             
             {isOwner && (
               <button 
-                className="btn btn-ghost" 
+                className="btn btn-primary btn-small" 
                 onClick={() => setShowEditModal(true)}
                 style={{ marginTop: '16px' }}
               >
@@ -103,7 +103,7 @@ export default function FreelancerProfile() {
             )}
 
             {userData?.bio && (
-              <p style={{ fontSize: '16px', color: 'var(--text-2)', maxWidth: '600px', margin: '16px 0 0', lineHeight: 1.6 }}>
+              <p style={{ fontSize: '15px', color: 'var(--text-muted)', maxWidth: '640px', margin: '16px 0 0', lineHeight: 1.6 }}>
                 {userData.bio}
               </p>
             )}
@@ -111,7 +111,7 @@ export default function FreelancerProfile() {
             {userData?.skills && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '16px' }}>
                 {userData.skills.split(',').map((skill: string, i: number) => (
-                  <span key={i} style={{ padding: '4px 12px', background: 'var(--ink)', border: '1px solid var(--ink-line)', borderRadius: '999px', fontSize: '12px', color: 'var(--text-2)' }}>
+                  <span key={i} style={{ padding: '4px 10px', background: '#ffffff', border: '1px solid var(--border-line)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-subtle)', fontWeight: 600 }}>
                     {skill.trim()}
                   </span>
                 ))}

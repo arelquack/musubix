@@ -465,6 +465,9 @@ let UserJobServiceController = class UserJobServiceController {
     getJobs(query) {
         return this.userJobServiceService.getJobs(query);
     }
+    getJob(data) {
+        return this.userJobServiceService.getJobById(data.id);
+    }
     getTreasury() {
         return { issuerPubKey: this.userJobServiceService['stellarService'].getTreasuryPubKey() };
     }
@@ -516,6 +519,12 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserJobServiceController.prototype, "getJobs", null);
+__decorate([
+    (0, microservices_1.MessagePattern)({ cmd: 'get_job' }),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserJobServiceController.prototype, "getJob", null);
 __decorate([
     (0, microservices_1.MessagePattern)({ cmd: 'get_treasury' }),
     __metadata("design:type", Function),
@@ -758,6 +767,15 @@ let UserJobServiceService = class UserJobServiceService {
             },
         });
     }
+    async getJobById(id) {
+        return this.prisma.job.findUnique({
+            where: { id },
+            include: {
+                client: { select: { name: true, stellarPubKey: true, avatarUrl: true } },
+                freelancer: { select: { name: true, stellarPubKey: true, avatarUrl: true } },
+            },
+        });
+    }
     async acceptJob(jobId, freelancerPubKey) {
         if (!freelancerPubKey)
             throw new Error('freelancerPubKey is required');
@@ -904,8 +922,7 @@ let UserJobServiceService = class UserJobServiceService {
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user || !user.stellarSecret)
             throw new Error('User wallet not found');
-        const secretKey = this.walletService.decryptSecret(user.stellarSecret);
-        return this.walletService.signTransaction(secretKey, xdr);
+        return this.walletService.signTransaction(user.stellarSecret, xdr, 'Test SDF Network ; September 2015');
     }
     async updateProfile(pubKey, data) {
         return this.prisma.user.update({

@@ -24,6 +24,11 @@ export class AppController {
     return this.userJobClient.send({ cmd: 'get_treasury' }, {});
   }
 
+  @Get('jobs/item/:id')
+  getJobById(@Param('id') id: string) {
+    return this.userJobClient.send({ cmd: 'get_job' }, { id });
+  }
+
   @Post('jobs/:id/accept')
   acceptJob(@Param('id') id: string, @Body() body: { freelancerPubKey: string }) {
     return this.userJobClient.send({ cmd: 'accept_job' }, { jobId: id, freelancerPubKey: body.freelancerPubKey });
