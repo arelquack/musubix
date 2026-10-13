@@ -11,10 +11,10 @@
   --border-line:  #e4e8f1;
   --border-subtle:#edf1f7;
 
-  /* BRAND ACCENTS - REFINED COBALT TECH BLUE (TALENTBRIDGE PALETTE) */
-  --primary:      #3b5bf5;
-  --primary-hover:#2d49db;
-  --primary-soft: rgba(59, 91, 245, 0.08);
+  /* BRAND ACCENTS - ROYAL ELECTRIC VIOLET (HARMONIZED WITH MUSUBIX LOGO) */
+  --primary:      #7c3aed;
+  --primary-hover:#6d28d9;
+  --primary-soft: rgba(124, 58, 237, 0.08);
 
   --accent-gold:  #f59e0b;
   --accent-green: #10b981;
@@ -46,10 +46,10 @@
   --ink-card:     #ffffff;
   --ink-line:     #e2e8f0;
   --ink-line-soft:#f1f5f9;
-  --shu:          #4e54c8;
+  --shu:          #7c3aed;
   --kin:          #d97706;
   --matsu:        #059669;
-  --ai:           #2563eb;
+  --ai:           #6d28d9;
   --text-1:       #0f172a;
   --text-2:       #475569;
   --text-3:       #64748b;
@@ -95,16 +95,18 @@ img, svg { display: block; max-width: 100%; }
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-line);
+  background: rgba(247, 248, 252, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(228, 232, 241, 0.5);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .site-header .wrap {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 74px;
+  height: 72px;
 }
 
 .brand {
@@ -325,6 +327,23 @@ img, svg { display: block; max-width: 100%; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.globe-canvas-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.globe-canvas-wrap::after {
+  content: '';
+  position: absolute;
+  bottom: -24px;
+  left: 10%;
+  right: 10%;
+  height: 28px;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.08) 0%, rgba(15, 23, 42, 0) 70%);
+  pointer-events: none;
 }
 .hero-illustration-svg {
   width: 100%;
@@ -807,22 +826,61 @@ img, svg { display: block; max-width: 100%; }
   .categories-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .latest-jobs-grid { grid-template-columns: repeat(2, 1fr) !important; }
   .community-grid { grid-template-columns: 1fr !important; }
+  .perf-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 @media (max-width: 768px) {
-  .site-header { padding: 12px 0; }
+  .site-header { padding: 8px 0; }
   .site-header .wrap { flex-direction: column; height: auto; gap: 0; }
   .header-top { width: 100%; justify-content: space-between; }
   .hamburger-btn { display: block; }
-  .header-actions { display: none; flex-direction: column; width: 100%; padding-top: 16px; padding-bottom: 8px; gap: 12px; }
+  .header-actions { display: none; flex-direction: column; width: 100%; padding-top: 16px; padding-bottom: 8px; gap: 10px; }
   .header-actions.open { display: flex; }
+  .header-actions .btn { width: 100%; justify-content: center; }
 
-  .hero-grid { grid-template-columns: 1fr; gap: 36px; text-align: center; }
-  .hero-visual-box { order: -1; }
-  .categories-grid { grid-template-columns: 1fr !important; }
-  .latest-jobs-grid { grid-template-columns: 1fr !important; }
+  .hero { padding: 36px 0 32px; }
+  .hero-grid { grid-template-columns: 1fr; gap: 28px; text-align: left; }
+  .hero h1 { font-size: 32px; line-height: 1.18; }
+  .hero p.lede { font-size: 15px; }
+
+  .hero-btn-row { flex-direction: column; width: 100%; }
+  .hero-btn-row .btn { width: 100%; text-align: center; justify-content: center; }
+
+  .search-bar-wrap { width: 100%; max-width: 100%; padding: 4px 6px 4px 14px; }
+  .search-bar-input { font-size: 13.5px; }
+
+  .hero-illustration-scene { max-width: 340px; margin: 10px auto; }
+  .hero-float-top { top: 0; right: 0; padding: 6px 10px; }
+  .hero-float-bottom { bottom: 0; left: 0; padding: 6px 10px; }
+  .hero-float-icon { width: 28px; height: 28px; font-size: 14px; }
+  .hero-float-text h5 { font-size: 11.5px; }
+  .hero-float-text p { font-size: 10px; }
+
+  .perf-grid { grid-template-columns: 1fr !important; gap: 12px; }
+  .perf-card { padding: 14px 16px; }
+
+  .categories-grid { grid-template-columns: 1fr !important; gap: 12px; }
+  .latest-jobs-grid { grid-template-columns: 1fr !important; gap: 14px; }
   .opportunity-grid { grid-template-columns: 1fr !important; }
-  .footer-main-row { grid-template-columns: 1fr; gap: 36px; }
-  .footer-links-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .job-grid { grid-template-columns: 1fr !important; }
+
+  .wallet-bar { flex-direction: column; align-items: stretch; gap: 14px; padding: 16px; }
+  .wallet-divider { display: none; }
+  .wallet-actions { margin-left: 0; width: 100%; justify-content: space-between; }
+
+  .newsletter-banner { padding: 28px 22px; flex-direction: column; text-align: center; gap: 20px; }
+  .newsletter-form { flex-direction: column; width: 100%; }
+  .newsletter-form .btn { width: 100%; }
+
+  .footer-main-row { grid-template-columns: 1fr; gap: 32px; }
+  .footer-links-grid { grid-template-columns: 1fr 1fr !important; gap: 20px; }
+  .footer-bottom { flex-direction: column; align-items: flex-start; gap: 12px; }
+
   .wrap { padding: 0 16px; }
+}
+
+@media (max-width: 480px) {
+  .footer-links-grid { grid-template-columns: 1fr !important; }
+  .job-toolbar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+  .job-toolbar .chip { flex-shrink: 0; }
 }

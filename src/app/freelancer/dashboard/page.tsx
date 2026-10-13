@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/PageWrapper';
 import { useAuth } from '@/components/AuthProvider';
 import { TransactionBuilder, Operation, Asset, Memo } from '@stellar/stellar-sdk';

@@ -8,8 +8,13 @@ const shippori = Shippori_Mincho({ weight: ['500', '600'], subsets: ['latin'], v
 const jetbrains = JetBrains_Mono({ weight: ['500', '600', '700'], subsets: ['latin'], variable: '--font-jetbrains' });
 
 export const metadata: Metadata = {
-  title: 'Musubix — Borderless micro-freelance, tied by Stellar',
-  description: 'Secure, cross-border Web3 freelance marketplace',
+  title: 'MusubiX',
+  description: 'Secure, cross-border freelance marketplace powered by Stellar',
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({

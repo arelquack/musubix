@@ -8,11 +8,13 @@ export const SiteFooter = () => {
         <div className="footer-main-row">
           <div>
             <Link href="/" className="brand" style={{ fontSize: '18px', display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '14px', textDecoration: 'none' }}>
-              <svg className="knot-mark" style={{ width: '24px', height: '14px' }} viewBox="0 0 60 34" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M4 17C4 6 16 4 22 10C28 16 28 18 22 24C16 30 4 28 4 17Z" stroke="#c8493c" strokeWidth="3" strokeLinecap="round"/>
-                <path d="M56 17C56 6 44 4 38 10C32 16 32 18 38 24C44 30 56 28 56 17Z" stroke="#c9a24b" strokeWidth="3" strokeLinecap="round"/>
-              </svg>
-              <span style={{ fontWeight: 600, color: 'var(--text-1)' }}>Musubix</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src="/logo-musubix.png" 
+                alt="MusubiX Logo" 
+                style={{ width: '28px', height: 'auto', display: 'block', objectFit: 'contain' }} 
+              />
+              <span style={{ fontWeight: 700, color: 'var(--text-1)' }}>MusubiX</span>
             </Link>
             <p style={{ color: 'var(--text-2)', fontSize: '14px', maxWidth: '34ch', lineHeight: 1.6, margin: 0 }}>
               The decentralized borderless freelance platform tied by Stellar and powered by Soroban escrow smart contracts.

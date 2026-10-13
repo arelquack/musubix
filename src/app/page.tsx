@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/PageWrapper';
+import { PreciseGlobe } from '@/components/common/PreciseGlobe';
 import { SiStellar } from 'react-icons/si';
 import { 
   FiSearch, 
@@ -113,12 +114,12 @@ export default function Home() {
             <div>
               <div className="hero-tag-clean">
                 <SiStellar size={16} />
-                <span>Powered by Stellar &middot; Soroban Escrow</span>
+                <span>Powered by Stellar</span>
               </div>
 
               <h1>Your Career Starts Here.<br/>The <em>World Awaits</em>.</h1>
               <p className="lede">
-                Whether you&apos;re looking for first-tier Web3 talent or your next project, payments lock securely in smart contracts and release instantly upon mutual approval.
+                Whether you&apos;re hiring top global talent or looking for your next high-impact project, payments lock safely in automated escrow and release instantly upon mutual approval.
               </p>
 
               {/* SEARCH BAR (CLEAN LIGHT TALENTBRIDGE STYLE) */}
@@ -147,7 +148,7 @@ export default function Home() {
               </div>
 
               {/* HERO CTA BUTTONS (MOVED CLEANLY TO THE LEFT) */}
-              <div style={{ display: 'flex', gap: '14px', marginTop: '28px', flexWrap: 'wrap' }}>
+              <div className="hero-btn-row" style={{ display: 'flex', gap: '14px', marginTop: '28px', flexWrap: 'wrap' }}>
                 <Link href="/client/dashboard" className="btn btn-primary" style={{ padding: '13px 26px' }}>
                   Post a Project
                 </Link>
@@ -157,58 +158,20 @@ export default function Home() {
               </div>
             </div>
 
-            {/* HERO RIGHT: SEAMLESS VECTOR ILLUSTRATION (MERGED WITH BACKGROUND) */}
+            {/* HERO RIGHT: HIGH-PRECISION 3D INTERACTIVE GLOBE */}
             <div className="hero-illustration-scene">
-              <svg className="hero-illustration-svg" viewBox="0 0 460 360" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Soft ambient background aura */}
-                <ellipse cx="230" cy="200" rx="190" ry="130" fill="url(#heroGlow)" opacity="0.6"/>
-                <defs>
-                  <radialGradient id="heroGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(230 200) rotate(90) scale(130 190)">
-                    <stop stopColor="#3b5bf5" stopOpacity="0.12"/>
-                    <stop offset="1" stopColor="#3b5bf5" stopOpacity="0"/>
-                  </radialGradient>
-                  <linearGradient id="laptopGrad" x1="130" y1="120" x2="330" y2="280" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#1e293b"/>
-                    <stop offset="1" stopColor="#0f172a"/>
-                  </linearGradient>
-                  <linearGradient id="screenGrad" x1="140" y1="130" x2="320" y2="250" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#3b5bf5"/>
-                    <stop offset="1" stopColor="#6366f1"/>
-                  </linearGradient>
-                </defs>
-
-                {/* Desk Base Shadow */}
-                <ellipse cx="230" cy="295" rx="160" ry="18" fill="#e2e8f0" opacity="0.7"/>
-
-                {/* Modern Laptop Workstation */}
-                <rect x="135" y="130" width="190" height="125" rx="10" fill="url(#laptopGrad)" stroke="#cbd5e1" strokeWidth="2"/>
-                <rect x="145" y="140" width="170" height="105" rx="6" fill="#f8fafc"/>
-                
-                {/* Screen Content: Code & Web3 Workspace */}
-                <rect x="155" y="152" width="70" height="8" rx="4" fill="#3b5bf5"/>
-                <rect x="155" y="166" width="110" height="5" rx="2.5" fill="#cbd5e1"/>
-                <rect x="155" y="176" width="90" height="5" rx="2.5" fill="#cbd5e1"/>
-                <rect x="155" y="186" width="130" height="5" rx="2.5" fill="#cbd5e1"/>
-
-                {/* Mini Chart Graphic on Screen */}
-                <path d="M155 220 L180 205 L205 212 L235 195 L260 200 L285 180" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-                
-                {/* Laptop Keyboard Base */}
-                <path d="M100 255 L360 255 L340 280 L120 280 Z" fill="#94a3b8"/>
-                <rect x="195" y="260" width="70" height="6" rx="3" fill="#cbd5e1"/>
-
-                {/* Connection Node / Stellar Network Line */}
-                <path d="M60 110 C 100 80, 160 120, 230 90 C 300 60, 360 120, 400 90" stroke="#3b5bf5" strokeWidth="2" strokeDasharray="4 6" opacity="0.4"/>
-              </svg>
+              <div className="globe-canvas-wrap">
+                <PreciseGlobe size={440} />
+              </div>
 
               {/* Floating Verified Badge 1 */}
               <div className="hero-float-card hero-float-top">
                 <div className="hero-float-icon">
-                  <FiShield />
+                  <FiGlobe />
                 </div>
                 <div className="hero-float-text">
-                  <h5>Soroban Smart Escrow</h5>
-                  <p>Guaranteed Settlement</p>
+                  <h5>Global Talent Network</h5>
+                  <p>Cross-Border Contracts</p>
                 </div>
               </div>
 
@@ -218,8 +181,8 @@ export default function Home() {
                   <FiCheckCircle />
                 </div>
                 <div className="hero-float-text">
-                  <h5>Instant Release</h5>
-                  <p>On Mutual Approval</p>
+                  <h5>Instant Settlement</h5>
+                  <p>Locked in Smart Escrow</p>
                 </div>
               </div>
             </div>
